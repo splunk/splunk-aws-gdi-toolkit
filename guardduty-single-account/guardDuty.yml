@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: This is a CloudFormation template to enable GuardDuty
+Description: This is a CloudFormation template to enable GuardDuty - https://aws.amazon.com/guardduty/
 
 
 Parameters:

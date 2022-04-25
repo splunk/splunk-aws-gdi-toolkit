@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: This is a CloudFormation template to enable SecurityHub
+Description: This is a CloudFormation template to enable SecurityHub - https://aws.amazon.com/security-hub/
 
 
 Parameters:

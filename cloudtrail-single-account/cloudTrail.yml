@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: This is a CloudFormation template to create CloudTrail logging infrastructure to S3
+Description: This is a CloudFormation template to create CloudTrail logging infrastructure to S3 and CloudWatch Logs - https://aws.amazon.com/cloudtrail/
 
 
 Parameters:
