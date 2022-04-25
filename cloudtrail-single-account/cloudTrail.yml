@@ -44,7 +44,6 @@ Parameters:
 
 
 Resources:
-
   cloudTrail:
     Type: AWS::CloudTrail::Trail
     Properties:

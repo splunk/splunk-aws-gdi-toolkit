@@ -18,8 +18,8 @@ Parameters:
     Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
     Type: String
 
-Resources:
 
+Resources:
   securityHub:
     Type: AWS::SecurityHub::Hub
     Properties:

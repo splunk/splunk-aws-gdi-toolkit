@@ -19,7 +19,6 @@ Parameters:
     Type: String
 
 Resources:
-
   guardDutyDetector:
     Type: AWS::GuardDuty::Detector
     Properties: 
