@@ -131,7 +131,7 @@ Resources:
       Tags:
       - Key: service
         Value: !Ref service
-      - Key: environment
+      - Key: stage
         Value: !Ref stage
       - Key: contact
         Value: !Ref contact
