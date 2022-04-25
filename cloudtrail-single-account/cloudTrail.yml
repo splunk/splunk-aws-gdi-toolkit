@@ -92,6 +92,14 @@ Resources:
       - Key: contact
         Value: !Ref contact
 
+  cloudTrailLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/${service}-cloudtrail/"
+      RetentionInDays: 30
+
 Outputs:
   cloudTrailS3BucketArn:
     Value: !GetAtt cloudTrailS3Bucket.Arn
+  cloudTrailLogGroupArn:
+    Value: !GetAtt cloudTrailLogGroup.Arn
