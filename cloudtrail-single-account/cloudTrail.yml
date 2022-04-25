@@ -47,22 +47,24 @@ Parameters:
 
 Resources:
 
-  # cloudTrail:
-  #   Type: AWS::CloudTrail::Trail
-  #   Properties:
-  #     EnableLogFileValidation: !Ref cloudTrailLogFileValidation
-  #     IncludeGlobalServiceEvents: !Ref cloudTrailIncludeGlobalServiceEvents
-  #     IsLogging: true
-  #     IsMultiRegionTrail: !Ref cloudTrailMultiRegionLogging
-  #     S3BucketName: !Ref cloudTrailS3Bucket
-  #     Tags:
-  #     - Key: service
-  #       Value: !Ref service
-  #     - Key: stage
-  #       Value: !Ref stage
-  #     - Key: contact
-  #       Value: !Ref contact
-  #     TrailName: !Sub "${service}-cloudtrail"
+  cloudTrail:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      CloudWatchLogsLogGroupArn: !GetAtt cloudTrailLogGroup.Arn
+      CloudWatchLogsRoleArn: !GetAtt cloudTrailRole.Arn
+      EnableLogFileValidation: !Ref cloudTrailLogFileValidation
+      IncludeGlobalServiceEvents: !Ref cloudTrailIncludeGlobalServiceEvents
+      IsLogging: true
+      IsMultiRegionTrail: !Ref cloudTrailMultiRegionLogging
+      S3BucketName: !Ref cloudTrailS3Bucket
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      TrailName: !Sub "${service}-cloudtrail"
 
   cloudTrailPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -163,6 +165,8 @@ Resources:
       RetentionInDays: 30
 
 Outputs:
+  cloudTrailArn: 
+    Value: !GetAtt cloudTrail.Arn
   cloudTrailRoleArn:
     Value: !GetAtt cloudTrailRole.Arn
   cloudTrailS3BucketArn:
