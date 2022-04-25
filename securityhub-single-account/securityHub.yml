@@ -31,5 +31,5 @@ Resources:
 
 
 Outputs:
-  securityHub:
+  securityHubArn:
     Value: !Ref securityHub
