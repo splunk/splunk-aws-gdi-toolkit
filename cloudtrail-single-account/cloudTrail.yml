@@ -64,6 +64,50 @@ Resources:
   #       Value: !Ref contact
   #     TrailName: !Sub "${service}-cloudtrail"
 
+  cloudTrailPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !GetAtt cloudTrailLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-bucket/*"
+        - Effect: Allow
+          Action:
+          - s3:GetBucketAcl
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-bucket"
+      ManagedPolicyName: !Sub "${service}-cloudtrail-iam-policy"
+
+  cloudTrailRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "cloudtrail.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref cloudTrailPolicy
+      RoleName: !Sub "${service}-cloudtrail-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
   cloudTrailS3Bucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -99,6 +143,8 @@ Resources:
       RetentionInDays: 30
 
 Outputs:
+  cloudTrailRoleArn:
+    Value: !GetAtt cloudTrailRole.Arn
   cloudTrailS3BucketArn:
     Value: !GetAtt cloudTrailS3Bucket.Arn
   cloudTrailLogGroupArn:
