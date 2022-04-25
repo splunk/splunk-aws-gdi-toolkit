@@ -136,6 +136,26 @@ Resources:
       - Key: contact
         Value: !Ref contact
 
+  cloudTrailS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref cloudTrailS3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+          Principal: 
+            Service: cloudtrail.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-bucket"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            Service: cloudtrail.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-bucket/AWSLogs/${AWS::AccountId}/*"
+
+
   cloudTrailLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
