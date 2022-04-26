@@ -26,7 +26,6 @@ The CloudFormation templates need to be deployed to the AWS account to enable se
 The easiest way to deploy these CloudFormation templates is via the [AWS CloudFormation Console](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html).
 
 
-
 ### 2. Configure Splunk Cloud to Receive the Data
 The only configuration that needs to be done Splunk-side in this step is [adding any indexes](https://docs.splunk.com/Documentation/SplunkCloud/latest/Admin/ManageIndexes) that are needed to receive the data.  You may want to create an index for all of the AWS-related data (eg a single index named `aws`), or split out the data by use-case (eg CloudTrail data would go to an index named `aws`, but AWS RDS logs would go to an index named `database`).  If you're setting this up just to see what data will look like, we recommend creating an `aws` index for this data.
 
