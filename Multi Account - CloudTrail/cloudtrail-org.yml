@@ -112,6 +112,45 @@ Resources:
         - !Ref "cloudTrailOrgS3BucketNotificationSQSQueue"
 
   # Firehose > Splunk resources
+  cloudTrailOrgFirehoseIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:PutLogEvents
+          Resource: !GetAtt cloudTrailOrgFirehoseLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-firehose-backsplash-bucket/*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-cloudtrail-org-firehose-iam-policy"
+
+  cloudTrailOrgFirehoseIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "firehose.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref cloudTrailOrgFirehoseIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-cloudtrail-org-firehose-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
   cloudTrailOrgFirehoseBacksplashBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -158,3 +197,9 @@ Outputs:
     Value: !GetAtt cloudTrailOrgS3Bucket.Arn
   cloudTrailOrgS3BucketNotificationSQSQueueArn:
     Value: !GetAtt cloudTrailOrgS3BucketNotificationSQSQueue.Arn
+  cloudTrailOrgFirehoseIAMRoleArn:
+    Value: !GetAtt cloudTrailOrgFirehoseIAMRole.Arn
+  cloudTrailOrgFirehoseBacksplashBucketArn:
+    Value: !GetAtt cloudTrailOrgFirehoseBacksplashBucket.Arn
+  cloudTrailOrgFirehoseLogGroupArn:
+    Value: !GetAtt cloudTrailOrgFirehoseLogGroup.Arn
