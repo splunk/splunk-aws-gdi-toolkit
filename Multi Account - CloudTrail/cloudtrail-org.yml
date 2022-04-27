@@ -35,6 +35,10 @@ Resources:
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
               Status: Enabled
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Queue: !GetAtt cloudTrailOrgS3BucketNotificationSQSQueue.Arn
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -65,9 +69,45 @@ Resources:
             - s3:PutObject
           Principal: 
             Service: cloudtrail.amazonaws.com
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket/AWSLogs/${AWS::AccountId}/*"
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket/AWSLogs/*"
+
+  cloudTrailOrgS3BucketNotificationSQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${AWS::AccountId}-cloudtrail-org-sqs-queue"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      VisibilityTimeout: 60
+
+  cloudTrailOrgS3BucketNotificationSQSQueuePolicy: 
+    Type: AWS::SQS::QueuePolicy
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: !Sub "${AWS::AccountId}-cloudtrail-org-sqs-queuePolicy"
+        Statement:
+        -
+          Sid: Send messages to SQS
+          Effect: Allow
+          Principal:
+            AWS: "*"
+          Action:
+            - "SQS:SendMessage"
+          Resource: "*"
+          Condition:
+            ArnLike: 
+              "aws:SourceARN": !GetAtt cloudTrailOrgS3Bucket.Arn
+      Queues:
+        - !Ref "cloudTrailOrgS3BucketNotificationSQSQueue"
 
 
 Outputs:
   cloudTrailOrgS3BucketArn:
     Value: !GetAtt cloudTrailOrgS3Bucket.Arn
+  cloudTrailOrgS3BucketNotificationSQSQueueArn:
+    Value: !GetAtt cloudTrailOrgS3BucketNotificationSQSQueue.Arn
