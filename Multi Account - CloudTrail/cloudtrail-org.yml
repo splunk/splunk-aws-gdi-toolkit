@@ -26,6 +26,26 @@ Parameters:
     Type: String
     Description: HEC token Firehose will use to authenticate data being sent to Splunk.
 
+  lambdaProcessorMemorySize:
+    Type: String
+    Description: Size of memory to allocate to Lambda processor.  The higher this number the more memory is allocated and the more expensive the function is to run, but the fater it runs.
+    Default: 1024
+
+  lambdaProcessorTimeout:
+    Type: String
+    Description: How long the Lambda function can run until it times out.
+    Default: 600
+
+  lambdaProcessorBatchSize:
+    Type: String
+    Description: How many SQS messages (aka CloudTrail files) to process in a single Lambda execution.
+    Default: 100
+
+  lambdaProcessorBatchingWindowInSeconds:
+    Type: String
+    Description: How long to let SQS messages (aka CloudTrail files) queue up before processing them.
+    Default: 300
+
 
 Resources:
   # CloudTrail > S3 resources
@@ -96,7 +116,7 @@ Resources:
         Value: !Ref stage
       - Key: contact
         Value: !Ref contact
-      VisibilityTimeout: 60
+      VisibilityTimeout: 900
 
   cloudTrailOrgS3BucketNotificationSQSQueuePolicy: 
     Type: AWS::SQS::QueuePolicy
@@ -225,6 +245,132 @@ Resources:
       LogGroupName: !Ref cloudTrailOrgFirehoseLogGroup
       LogStreamName: "SplunkDelivery"
 
+  # Lambda resources
+  cloudTrailOrgLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        ZipFile: |
+          import boto3, gzip, json, os
+
+          s3Client = boto3.client('s3')
+          firehoseDeliverySreamName = os.environ['firehoseDeliverySreamName']
+          firehoseClient = boto3.client('firehose', region_name=os.environ['AWS_REGION'])
+
+          def handler(event, context):
+            for record in event['Records']:
+            
+              # Log record
+              print("Processing record: ", record)
+
+              # Set bucket and key to retrieve
+              record = json.loads(record['body'])
+              bucket = record['Records'][0]['s3']['bucket']['name']
+              key = record['Records'][0]['s3']['object']['key']
+
+              # Exclude Digest files from processing
+              if ("CloudTrail-Digest" in key):
+                print("Skipping digest file " + key + " in bucket " + bucket)
+                pass
+
+              else:
+
+                # Log bucket and key
+                print("Processing file " + key + " in bucket " + bucket)
+
+                # Download CloudTrail file from S3
+                s3Client.download_file(bucket, key, '/tmp/cloudtrail.gz')
+
+                # Unzip CloudTrail file
+                with gzip.open("/tmp/cloudtrail.gz", "rb") as f:
+                 data = f.read().decode("ascii")
+
+                # Parse and send data to Splunk
+                cloudTrailRecords = json.loads(data)["Records"]
+                for cloudTrailRecord in cloudTrailRecords:
+                  firehoseClient.put_record(DeliveryStreamName=firehoseDeliverySreamName, Record={"Data": json.dumps(cloudTrailRecord) + "\r\n"})
+      Description: Lambda function for processing SQS messages that contain information for CloudTrail files, and sending them to Firehose.
+      Environment:
+        Variables:
+          firehoseDeliverySreamName: !Ref cloudTraiLOrgFirehose
+      FunctionName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-function"
+      Handler: index.handler
+      MemorySize: !Ref lambdaProcessorMemorySize
+      Role: !GetAtt cloudTrailOrgLambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Timeout: !Ref lambdaProcessorTimeout
+
+  cloudTrailOrgLambdaIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket/*"
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-cloudtrail-org-firehose"
+        - Effect: Allow
+          Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: "*"
+        - Effect: Allow
+          Action:
+          - sqs:ListQueues
+          - sqs:GetQueueAttributes
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+          - sqs:DeleteMessageBatch
+          - sqs:ChangeMessageVisibility
+          Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-cloudtrail-org-sqs-queue"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-iam-policy"
+
+  cloudTrailOrgLambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref cloudTrailOrgLambdaIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  cloudTrailOrgLambdaEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: !Ref lambdaProcessorBatchSize
+      Enabled: true
+      EventSourceArn: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-cloudtrail-org-sqs-queue"
+      FunctionName: !GetAtt cloudTrailOrgLambdaFunction.Arn
+      MaximumBatchingWindowInSeconds: !Ref lambdaProcessorBatchingWindowInSeconds
+
 
 Outputs:
   cloudTrailOrgS3BucketArn:
@@ -239,3 +385,7 @@ Outputs:
     Value: !GetAtt cloudTrailOrgFirehoseBacksplashBucket.Arn
   cloudTrailOrgFirehoseLogGroupArn:
     Value: !GetAtt cloudTrailOrgFirehoseLogGroup.Arn
+  cloudTrailOrgLambdaFunctionArn:
+    Value: !GetAtt cloudTrailOrgLambdaFunction.Arn
+  cloudTrailOrgLambdaIAMRoleArn:
+    Value: !GetAtt cloudTrailOrgLambdaIAMRole.Arn
