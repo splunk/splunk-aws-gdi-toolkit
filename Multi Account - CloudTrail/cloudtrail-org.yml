@@ -20,11 +20,16 @@ Parameters:
 
 
 Resources:
+  # CloudTrail > S3 resources
   cloudTrailOrgS3Bucket:
     Type: AWS::S3::Bucket
     Properties:
       AccessControl: Private
       BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
@@ -71,6 +76,7 @@ Resources:
             Service: cloudtrail.amazonaws.com
           Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket/AWSLogs/*"
 
+  # S3 notification > SQS resources
   cloudTrailOrgS3BucketNotificationSQSQueue:
     Type: AWS::SQS::Queue
     Properties:
