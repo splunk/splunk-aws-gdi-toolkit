@@ -118,7 +118,7 @@ Resources:
       BucketName: !Sub "${AWS::AccountId}-cloudtrail-bucket"
       LifecycleConfiguration:
         Rules:
-            - Id: !Sub "${service}-infralog-bucket-cleanupPolicy"
+            - Id: !Sub "${AWS::AccountId}-cloudtrail-bucket-cleanupPolicy"
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
               Status: Enabled
