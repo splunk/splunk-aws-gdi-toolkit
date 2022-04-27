@@ -111,6 +111,47 @@ Resources:
       Queues:
         - !Ref "cloudTrailOrgS3BucketNotificationSQSQueue"
 
+  # Firehose > Splunk resources
+  cloudTrailOrgFirehoseBacksplashBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-cloudtrail-org-firehose-backsplash-bucket"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-cloudtrail-org-firehose-backsplash-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  cloudTrailOrgFirehoseLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-cloudtrail-org-firehose"
+      RetentionInDays: 30
+
+  cloudTrailOrgFirehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref cloudTrailOrgFirehoseLogGroup
+      LogStreamName: "SplunkDelivery"
+
 
 Outputs:
   cloudTrailOrgS3BucketArn:
