@@ -1,0 +1,39 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to enable IAM Access Analyer - https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html
+
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Type: String
+
+
+Resources:
+  iamAccessAnalyzer:
+    Type: AWS::AccessAnalyzer::Analyzer
+    Properties: 
+      AnalyzerName: !Sub "${service}-iam-access-analyer"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Type: ACCOUNT
+
+
+Outputs:
+  iamAccessAnalyzerArn:
+    Value: !Ref iamAccessAnalyzer
