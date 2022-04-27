@@ -1,0 +1,73 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create CloudTrail logging infrastructure for an AWS Organization to S3 then Splunk over HEC via Firehose - https://aws.amazon.com/cloudtrail/
+
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Type: String
+
+
+Resources:
+  cloudTrailOrgS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Sub "${AWS::AccountId}-cloudtrail-org-bucket"
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-cloudtrail-org-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  cloudTrailOrgS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref cloudTrailOrgS3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+          Principal: 
+            Service: cloudtrail.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            Service: cloudtrail.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket/AWSLogs/${AWS::AccountId}/*"
+
+
+Outputs:
+  cloudTrailOrgS3BucketArn:
+    Value: !GetAtt cloudTrailOrgS3Bucket.Arn
