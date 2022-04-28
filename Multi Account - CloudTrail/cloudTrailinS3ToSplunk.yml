@@ -140,7 +140,7 @@ Resources:
           Resource: "*"
           Condition:
             ArnLike: 
-              "aws:SourceARN": !GetAtt cloudTrailOrgS3Bucket.Arn
+              "aws:SourceARN": !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket"
       Queues:
         - !Ref "cloudTrailOrgS3BucketNotificationSQSQueue"
 
