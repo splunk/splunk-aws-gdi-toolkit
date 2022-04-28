@@ -84,6 +84,11 @@ Resources:
       NotificationConfiguration:
         QueueConfigurations:
           - Event: "s3:ObjectCreated:*"
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: "suffix"
+                    Value: ".json.gz"
             Queue: !GetAtt cloudTrailOrgS3BucketNotificationSQSQueue.Arn
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
