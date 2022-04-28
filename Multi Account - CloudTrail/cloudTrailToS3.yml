@@ -1,0 +1,64 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create CloudTrail logging infrastructure to S3.  This should be done at the top-level Organization account to capture all of the Organiation's CloudTrail logs - https://aws.amazon.com/cloudtrail/
+
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Type: String
+
+  cloudTrailS3BucketName:
+    Description: Destination bucket namethat will receive CloudTrail events.
+    Type: String
+
+ cloudTrailLogFileValidation:
+    Description: Used to enable or disable CloudTrail File Validation - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-log-file-validation-intro.html .
+    Default: true
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  cloudTrailIncludeGlobalServiceEvents:
+    Description: Used to enable or disable logging of CloudTrail global service events - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-concepts.html#cloudtrail-concepts-global-service-events .
+    Default: true
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+
+Resources:
+  cloudTrail:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      EnableLogFileValidation: !Ref cloudTrailLogFileValidation
+      IncludeGlobalServiceEvents: !Ref cloudTrailIncludeGlobalServiceEvents
+      IsLogging: true
+      IsMultiRegionTrail: !Ref cloudTrailMultiRegionLogging
+      IsOrganizationTrail: true
+      S3BucketName: !Ref cloudTrailS3BucketName
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      TrailName: !Sub "${service}-cloudtrail"
+
+
+Outputs:
+  cloudTrailArn: 
+    Value: !GetAtt cloudTrail.Arn
