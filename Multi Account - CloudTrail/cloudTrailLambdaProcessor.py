@@ -13,7 +13,7 @@ def retrieveS3Object(record):
 		key = record['Records'][0]['s3']['object']['key']
 
 	except:
-		return("SQS message did not contain S3 file information.  Record: " + record)
+		return("SQS message did not contain S3 file information.  Record: " + str(record))
 
 	if (("CloudTrail" not in key or "json.gz" not in key) or ("CloudTrail-Digest" in key)):
 		return("Skipping file s3://" + bucket + "" + key)
