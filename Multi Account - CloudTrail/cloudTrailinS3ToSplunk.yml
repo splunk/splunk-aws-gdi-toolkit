@@ -18,6 +18,11 @@ Parameters:
     Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
     Type: String
 
+  cloudTrailS3FileExpirationInDays:
+    Description: How many days to keep the CloudTrail files in S3.
+    Default: 366
+    Type: String
+
   splunkHECEndpoint:
     Type: String
     Description: Destination (URL) that Firehose will send data to.  This should be the event endpoint.
@@ -72,6 +77,9 @@ Resources:
             - Id: !Sub "${AWS::AccountId}-cloudtrail-org-bucket-cleanup"
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
+              Status: Enabled
+            - Id: !Sub "${service}-infralog-bucket-expiration"
+              ExpirationInDays: !Ref cloudTrailS3FileExpirationInDays
               Status: Enabled
       NotificationConfiguration:
         QueueConfigurations:
