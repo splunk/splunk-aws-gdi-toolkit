@@ -466,47 +466,68 @@ Resources:
         - Endpoint: !Ref cloudWatchAlertEmail
           Protocol: email
 
-  cloudTrailorgLambdaInvocationAlarm:
+  cloudTrailOrgLambdaInvocationAlarm:
     Condition: enableAlerting
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-error-invocations"
       ActionsEnabled: True
       AlarmActions: 
         - !Ref monitoringSNSTopic
       AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-cloudtrail-org-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
-      Namespace: AWS/Lambda
-      MetricName: Errors
+      AlarmName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-error-invocations"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
       - Name: FunctionName
         Value: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-function"
-      Statistic: Sum
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Threshold: 1
       EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
       Period: 60
+      Statistic: Sum
+      Threshold: 1
       Unit: Count
 
-  cloudTrailorgLambdaDurationAlarm:
+  cloudTrailOrgLambdaDurationAlarm:
     Condition: enableAlerting
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-error-duration"
-      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-cloudtrail-org-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
       ActionsEnabled: True
       AlarmActions: 
         - !Ref monitoringSNSTopic
-      Namespace: AWS/Lambda
-      MetricName: Duration
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-cloudtrail-org-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
+      AlarmName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-error-duration"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
       - Name: FunctionName
         Value: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Period: 60
       Statistic: Maximum
-      ComparisonOperator: GreaterThanOrEqualToThreshold
       Threshold: 300000
       Unit: Milliseconds
+
+  cloudTrailOrgFirehoseDeliveryAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-cloudtrail-org-firehose cannot deliver to Splunk."
+      AlarmName: !Sub "${AWS::AccountId}-cloudtrail-org-firehose-delivery-alarm"
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DeliveryStreamName
+        Value: !Sub "${AWS::AccountId}-cloudtrail-org-firehose"
       EvaluationPeriods: 1
+      MetricName: DeliveryToSplunk.Success
+      Namespace: AWS/Firehose
       Period: 60
+      Statistic: Maximum
+      Threshold: 1
+      Unit: Count
 
 
 Outputs:
