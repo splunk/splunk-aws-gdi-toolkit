@@ -266,6 +266,7 @@ Resources:
   # Lambda resources
   cloudTrailOrgLambdaFunction:
     Type: AWS::Lambda::Function
+    DependsOn: cloudTrailOrgLambdaLogGroup
     Properties:
       Architectures:
         - arm64
@@ -379,10 +380,9 @@ Resources:
           Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-cloudtrail-org-firehose"
         - Effect: Allow
           Action:
-          - logs:CreateLogGroup
           - logs:CreateLogStream
           - logs:PutLogEvents
-          Resource: "*"
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-cloudtrail-org-lambda-function*"
         - Effect: Allow
           Action:
           - sqs:ListQueues
@@ -416,6 +416,12 @@ Resources:
       - Key: contact
         Value: !Ref contact
 
+  cloudTrailOrgLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-cloudtrail-org-lambda-function"
+      RetentionInDays: 7
+
   cloudTrailOrgLambdaEventSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -443,3 +449,5 @@ Outputs:
     Value: !GetAtt cloudTrailOrgLambdaFunction.Arn
   cloudTrailOrgLambdaIAMRoleArn:
     Value: !GetAtt cloudTrailOrgLambdaIAMRole.Arn
+  cloudTrailOrgLambdaLogGroupArn:
+    Value: !GetAtt cloudTrailOrgLambdaLogGroup.Arn

@@ -166,7 +166,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/${service}-cloudtrail/"
-      RetentionInDays: 30
+      RetentionInDays: 7
 
 
 Outputs:
