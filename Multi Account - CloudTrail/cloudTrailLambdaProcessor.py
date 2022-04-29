@@ -1,4 +1,4 @@
-import boto3, gzip, json, os
+import boto3, gzip, json, os, sys
 
 s3Client = boto3.client('s3')
 firehoseDeliverySreamName = os.environ['firehoseDeliverySreamName']
