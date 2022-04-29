@@ -39,7 +39,7 @@ Parameters:
   lambdaProcessorTimeout:
     Type: String
     Description: How long the Lambda function can run until it times out.
-    Default: 600
+    Default: 180
 
   lambdaProcessorBatchSize:
     Type: String
@@ -55,6 +55,14 @@ Parameters:
     Type: String
     Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
     Default: 630
+
+  cloudWatchAlertEmail:
+    Type: String
+    Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
+
+
+Conditions:
+  enableAlerting: !Not [!Equals [!Ref cloudWatchAlertEmail, ""]]
 
 
 Resources:
@@ -78,7 +86,7 @@ Resources:
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
               Status: Enabled
-            - Id: !Sub "${service}-infralog-bucket-expiration"
+            - Id: !Sub "$${AWS::AccountId}-cloudtrail-org-bucket-expiration"
               ExpirationInDays: !Ref cloudTrailS3FileExpirationInDays
               Status: Enabled
       NotificationConfiguration:
@@ -447,6 +455,59 @@ Resources:
       FunctionName: !GetAtt cloudTrailOrgLambdaFunction.Arn
       MaximumBatchingWindowInSeconds: !Ref lambdaProcessorBatchingWindowInSeconds
 
+  # Monitoring resoruces
+  monitoringSNSTopic:
+    Condition: enableAlerting
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AWS::AccountId}-cloudtrail-org-alerting-topic"
+      TopicName: !Sub "${AWS::AccountId}-cloudtrail-org-alerting-topic"
+      Subscription:
+        - Endpoint: !Ref cloudWatchAlertEmail
+          Protocol: email
+
+  cloudTrailorgLambdaInvocationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-error-invocations"
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-cloudtrail-org-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-function"
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      EvaluationPeriods: 1
+      Period: 60
+      Unit: Count
+
+  cloudTrailorgLambdaDurationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-error-duration"
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-cloudtrail-org-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-function"
+      Statistic: Maximum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 300000
+      Unit: Milliseconds
+      EvaluationPeriods: 1
+      Period: 60
+
 
 Outputs:
   cloudTrailOrgS3BucketArn:
@@ -467,3 +528,6 @@ Outputs:
     Value: !GetAtt cloudTrailOrgLambdaIAMRole.Arn
   cloudTrailOrgLambdaLogGroupArn:
     Value: !GetAtt cloudTrailOrgLambdaLogGroup.Arn
+  monitoringSNSTopicArn:
+    Condition: enableAlerting
+    Value: !Ref monitoringSNSTopic
