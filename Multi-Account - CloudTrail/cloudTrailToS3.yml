@@ -22,7 +22,7 @@ Parameters:
     Description: Destination bucket namethat will receive CloudTrail events.
     Type: String
 
- cloudTrailLogFileValidation:
+  cloudTrailLogFileValidation:
     Description: Used to enable or disable CloudTrail File Validation - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-log-file-validation-intro.html .
     Default: true
     Type: String
@@ -46,7 +46,7 @@ Resources:
       EnableLogFileValidation: !Ref cloudTrailLogFileValidation
       IncludeGlobalServiceEvents: !Ref cloudTrailIncludeGlobalServiceEvents
       IsLogging: true
-      IsMultiRegionTrail: !Ref cloudTrailMultiRegionLogging
+      IsMultiRegionTrail: true
       IsOrganizationTrail: true
       S3BucketName: !Ref cloudTrailS3BucketName
       Tags:
