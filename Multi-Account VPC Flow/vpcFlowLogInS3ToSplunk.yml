@@ -59,7 +59,7 @@ Resources:
               S3Key:
                 Rules:
                   - Name: "suffix"
-                    Value: ".json.gz"
+                    Value: ".gz"
             Queue: !GetAtt vpcFlowLogS3BucketNotificationSQSQueue.Arn
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
