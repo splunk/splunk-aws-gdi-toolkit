@@ -1,0 +1,68 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create VPC Flow Logging infrastructure to S3.  This should be deployed once for each VPC, ENI, or subnet you want to capture VPC Flow Logs from.
+
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Type: String
+
+  vpcFlowLogS3BucketName:
+    Description: Destination bucket namethat will receive VPC Flow Log events.
+    Type: String
+
+  vpcFlowLogResourceId:
+    Description: The ID of the subnet, network interface, or VPC for which you want to create a flow log. Taken straight from https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-flowlog.html
+    Type: String
+
+  vpcFlowLogResourceType:
+    Description: The type of resource for which to create the flow log. Select NetworkInterface if you specified an ENI for vpcFlowLogResourceId, "Subnet" if you specified a subnet ID for vpcFlowLogResourceId, or "VPC" if you specified a VPC ID for vpcFlowLogResourceId" 
+    Type: String
+    Default: VPC
+    AllowedValues:
+      - NetworkInterface
+      - Subnet
+      - VPC
+
+  vpcFlowLogTrafficType:
+    Description: Type of traffic you want to log.
+    Type: String
+    Default: ALL
+    AllowedValues:
+      - ACCEPT
+      - REJECT
+      - ALL
+
+
+Resources:
+  vpcFlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      LogDestination: !Sub "arn:aws:s3:::${vpcFlowLogS3BucketName}"
+      LogDestinationType: s3
+      ResourceId: !Ref vpcFlowLogResourceId
+      ResourceType: !Ref vpcFlowLogResourceType
+      TrafficType: !Ref vpcFlowLogTrafficType
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+
+Outputs:
+  vpcFlowLogId: 
+    Value: !Ref vpcFlowLog
