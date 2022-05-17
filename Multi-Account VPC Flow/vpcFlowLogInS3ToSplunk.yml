@@ -22,6 +22,11 @@ Parameters:
     Default: 366
     Type: String
 
+  sqsQueueVisibilityTimeoutInSecond:
+    Type: String
+    Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
+    Default: 630
+
 
 Resources:
   # S3 resources
@@ -47,6 +52,15 @@ Resources:
             - Id: !Sub "$${AWS::AccountId}-vpcflowlog-bucket-expiration"
               ExpirationInDays: !Ref vpcFlowLogS3FileExpirationInDays
               Status: Enabled
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: "s3:ObjectCreated:Put"
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: "suffix"
+                    Value: ".json.gz"
+            Queue: !GetAtt vpcFlowLogS3BucketNotificationSQSQueue.Arn
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -83,7 +97,44 @@ Resources:
               s3:x-amz-acl: bucket-owner-full-control
 
 
+  # S3 notification > SQS resources
+  vpcFlowLogS3BucketNotificationSQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${AWS::AccountId}-vpcflowlog-sqs-queue"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      VisibilityTimeout: !Ref sqsQueueVisibilityTimeoutInSecond
+
+  vpcFlowLogS3BucketNotificationSQSQueuePolicy: 
+    Type: AWS::SQS::QueuePolicy
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: !Sub "${AWS::AccountId}-vpcflowlog-sqs-queuePolicy"
+        Statement:
+        -
+          Sid: Send messages to SQS
+          Effect: Allow
+          Principal:
+            AWS: "*"
+          Action:
+            - "SQS:SendMessage"
+          Resource: "*"
+          Condition:
+            ArnLike: 
+              "aws:SourceARN": !Sub "arn:aws:s3:::${AWS::AccountId}-vpcflowlog-bucket"
+      Queues:
+        - !Ref "vpcFlowLogS3BucketNotificationSQSQueue"
+
 
 Outputs:
   vpcFlowLogS3BucketArn:
     Value: !GetAtt vpcFlowLogS3Bucket.Arn
+  vpcFlowLogS3BucketNotificationSQSQueueArn:
+    Value: !GetAtt vpcFlowLogS3BucketNotificationSQSQueue.Arn
