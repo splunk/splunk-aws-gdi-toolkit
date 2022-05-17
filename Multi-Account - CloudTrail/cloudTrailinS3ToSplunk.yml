@@ -1,0 +1,554 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create CloudTrail logging infrastructure for an AWS Organization to S3 then Splunk over HEC via Firehose - https://aws.amazon.com/cloudtrail/
+
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Type: String
+
+  cloudTrailS3FileExpirationInDays:
+    Description: How many days to keep the CloudTrail files in S3.
+    Default: 366
+    Type: String
+
+  splunkHECEndpoint:
+    Type: String
+    Description: Destination (URL) that Firehose will send data to.  This should be the event endpoint.
+
+  splunkHECToken:
+    Type: String
+    Description: HEC token Firehose will use to authenticate data being sent to Splunk.
+
+  lambdaProcessorMemorySize:
+    Type: String
+    Description: Size of memory to allocate to Lambda processor.  The higher this number the more memory is allocated and the more expensive the function is to run, but the fater it runs.
+    Default: 1024
+
+  lambdaProcessorTimeout:
+    Type: String
+    Description: How long the Lambda function can run until it times out.
+    Default: 180
+
+  lambdaProcessorBatchSize:
+    Type: String
+    Description: How many SQS messages (aka CloudTrail files) to process in a single Lambda execution.
+    Default: 100
+
+  lambdaProcessorBatchingWindowInSeconds:
+    Type: String
+    Description: How long to let SQS messages (aka CloudTrail files) queue up before processing them.
+    Default: 60
+
+  sqsQueueVisibilityTimeoutInSecond:
+    Type: String
+    Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
+    Default: 630
+
+  cloudWatchAlertEmail:
+    Type: String
+    Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
+
+
+Conditions:
+  enableAlerting: !Not [!Equals [!Ref cloudWatchAlertEmail, ""]]
+
+
+Resources:
+  # CloudTrail > S3 resources
+  cloudTrailOrgS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Sub "${AWS::AccountId}-cloudtrail-org-bucket"
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-cloudtrail-org-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+            - Id: !Sub "$${AWS::AccountId}-cloudtrail-org-bucket-expiration"
+              ExpirationInDays: !Ref cloudTrailS3FileExpirationInDays
+              Status: Enabled
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: "s3:ObjectCreated:Put"
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: "suffix"
+                    Value: ".json.gz"
+            Queue: !GetAtt cloudTrailOrgS3BucketNotificationSQSQueue.Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  cloudTrailOrgS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref cloudTrailOrgS3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+          Principal: 
+            Service: cloudtrail.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            Service: cloudtrail.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket/AWSLogs/*"
+
+  # S3 notification > SQS resources
+  cloudTrailOrgS3BucketNotificationSQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${AWS::AccountId}-cloudtrail-org-sqs-queue"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      VisibilityTimeout: !Ref sqsQueueVisibilityTimeoutInSecond
+
+  cloudTrailOrgS3BucketNotificationSQSQueuePolicy: 
+    Type: AWS::SQS::QueuePolicy
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: !Sub "${AWS::AccountId}-cloudtrail-org-sqs-queuePolicy"
+        Statement:
+        -
+          Sid: Send messages to SQS
+          Effect: Allow
+          Principal:
+            AWS: "*"
+          Action:
+            - "SQS:SendMessage"
+          Resource: "*"
+          Condition:
+            ArnLike: 
+              "aws:SourceARN": !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket"
+      Queues:
+        - !Ref "cloudTrailOrgS3BucketNotificationSQSQueue"
+
+  # Firehose > Splunk resources
+  cloudTraiLOrgFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      DeliveryStreamName: !Sub "${AWS::AccountId}-cloudtrail-org-firehose"
+      DeliveryStreamType: DirectPut
+      SplunkDestinationConfiguration:
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref cloudTrailOrgFirehoseLogGroup
+          LogStreamName: "SplunkDelivery"
+        HECAcknowledgmentTimeoutInSeconds: 300
+        HECEndpoint: !Ref splunkHECEndpoint
+        HECEndpointType: "Raw"
+        HECToken: !Ref splunkHECToken
+        RetryOptions:
+          DurationInSeconds: 15
+        S3BackupMode: "FailedEventsOnly"
+        S3Configuration:
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-firehose-backsplash-bucket"
+          BufferingHints:
+            IntervalInSeconds: 300
+            SizeInMBs: 5
+          CompressionFormat: "UNCOMPRESSED"
+          Prefix: !Sub "$${AWS::AccountId}-cloudtrail-org-firehose"
+          RoleARN: !GetAtt cloudTrailOrgFirehoseIAMRole.Arn
+
+  cloudTrailOrgFirehoseIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:PutLogEvents
+          Resource: !GetAtt cloudTrailOrgFirehoseLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-firehose-backsplash-bucket/*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-cloudtrail-org-firehose-iam-policy"
+
+  cloudTrailOrgFirehoseIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "firehose.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref cloudTrailOrgFirehoseIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-cloudtrail-org-firehose-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  cloudTrailOrgFirehoseBacksplashBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-cloudtrail-org-firehose-backsplash-bucket"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-cloudtrail-org-firehose-backsplash-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  cloudTrailOrgFirehoseLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-cloudtrail-org-firehose"
+      RetentionInDays: 30
+
+  cloudTrailOrgFirehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref cloudTrailOrgFirehoseLogGroup
+      LogStreamName: "SplunkDelivery"
+
+  # Lambda resources
+  cloudTrailOrgLambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: cloudTrailOrgLambdaLogGroup
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        ZipFile: |
+          import boto3, gzip, json, os, sys
+
+          s3Client = boto3.client('s3')
+          firehoseDeliverySreamName = os.environ['firehoseDeliverySreamName']
+          firehoseClient = boto3.client('firehose', region_name=os.environ['AWS_REGION'])
+
+          def retrieveS3Object(record):
+
+            try:
+              # Set bucket and key to retrieve
+              record = json.loads(record['body'])
+              bucket = record['Records'][0]['s3']['bucket']['name']
+              key = record['Records'][0]['s3']['object']['key']
+
+            except:
+              return("SQS message did not contain S3 file information.  Record: " + str(record))
+
+            if (("CloudTrail" not in key or "json.gz" not in key) or ("CloudTrail-Digest" in key)):
+              return("Skipping file s3://" + bucket + "" + key)
+
+            try:
+              # Download CloudTrail file from S3
+              s3Client.download_file(bucket, key, "/tmp/" + key.split("/")[-1] + ".gz")
+            except:
+              return("Unable to download file s3://" + bucket + "/" + key)
+
+            return("Downloaded CloudTrail file s3://" + bucket + "/" + key)
+
+
+          def processCloudTrailFile(record):
+
+            # Set bucket and key to retrieve
+            record = json.loads(record['body'])
+            bucket = record['Records'][0]['s3']['bucket']['name']
+            key = record['Records'][0]['s3']['object']['key']
+
+            try:
+              with gzip.open("/tmp/" + key.split("/")[-1] + ".gz", "rb") as f:
+                data = f.read().decode("ascii")
+
+            except:
+              return("Unable to decode file s3://" + bucket + "/" + key)
+
+            
+            # Parse JSON data
+            try:
+              cloudTrailRecords = json.loads(data)["Records"]
+            except:
+              return("Unable to CloudTrail records from s3://" + bucket + "/" + key)
+
+
+            # Send data to Firehose
+            try:
+
+              recordBatch = []
+
+              for cloudTrailRecord in cloudTrailRecords:
+                # Add record to recordbatch
+                recordBatch.append({"Data": json.dumps(cloudTrailRecord) + "\r\n"})
+
+                # If there are more than 250 records or 2MB in the sending queue, send the event to Splunk and clear the queue
+                if (len(recordBatch) > 250 or (sys.getsizeof(recordBatch) > 2000000 )):
+                  firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
+                  recordBatch.clear()
+
+              # Send any remaining records to Splunk
+              if (len(recordBatch) > 0):
+                firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
+                recordBatch.clear()
+
+            except:
+              return("Unable to send record to Firehose s3://" + bucket + "/" + key)
+
+
+            return("Processed CloudTrail records from s3://" + bucket + "/" + key)
+
+
+          def handler(event, context):
+
+            for record in event['Records']:
+
+              # Parse SQS message and download file from S3
+              retrievalResult = retrieveS3Object(record)
+              print(retrievalResult)    
+
+              # Process file, only if it was successfully downloaded
+              if ("Downloaded CloudTrail" in retrievalResult):
+                processResult = processCloudTrailFile(record)
+                print(processResult)
+      Description: Lambda function for processing SQS messages that contain information for CloudTrail files, and sending them to Firehose.
+      Environment:
+        Variables:
+          firehoseDeliverySreamName: !Ref cloudTraiLOrgFirehose
+      FunctionName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-function"
+      Handler: index.handler
+      MemorySize: !Ref lambdaProcessorMemorySize
+      Role: !GetAtt cloudTrailOrgLambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Timeout: !Ref lambdaProcessorTimeout
+
+  cloudTrailOrgLambdaIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-cloudtrail-org-bucket/*"
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          - firehose:PutRecordBatch
+          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-cloudtrail-org-firehose"
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-cloudtrail-org-lambda-function*"
+        - Effect: Allow
+          Action:
+          - sqs:ListQueues
+          - sqs:GetQueueAttributes
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+          - sqs:DeleteMessageBatch
+          - sqs:ChangeMessageVisibility
+          Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-cloudtrail-org-sqs-queue"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-iam-policy"
+
+  cloudTrailOrgLambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref cloudTrailOrgLambdaIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  cloudTrailOrgLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-cloudtrail-org-lambda-function"
+      RetentionInDays: 7
+
+  cloudTrailOrgLambdaEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: !Ref lambdaProcessorBatchSize
+      Enabled: true
+      EventSourceArn: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-cloudtrail-org-sqs-queue"
+      FunctionName: !GetAtt cloudTrailOrgLambdaFunction.Arn
+      MaximumBatchingWindowInSeconds: !Ref lambdaProcessorBatchingWindowInSeconds
+
+  # Monitoring resoruces
+  monitoringSNSTopic:
+    Condition: enableAlerting
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AWS::AccountId}-cloudtrail-org-alerting-topic"
+      TopicName: !Sub "${AWS::AccountId}-cloudtrail-org-alerting-topic"
+      Subscription:
+        - Endpoint: !Ref cloudWatchAlertEmail
+          Protocol: email
+
+  cloudTrailOrgLambdaInvocationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-cloudtrail-org-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
+      AlarmName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-error-invocations"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+      Unit: Count
+
+  cloudTrailOrgLambdaDurationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-cloudtrail-org-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
+      AlarmName: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-error-duration"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-cloudtrail-org-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Maximum
+      Threshold: 300000
+      Unit: Milliseconds
+
+  cloudTrailOrgFirehoseDeliveryAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-cloudtrail-org-firehose cannot deliver to Splunk."
+      AlarmName: !Sub "${AWS::AccountId}-cloudtrail-org-firehose-delivery-alarm"
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DeliveryStreamName
+        Value: !Sub "${AWS::AccountId}-cloudtrail-org-firehose"
+      EvaluationPeriods: 1
+      MetricName: DeliveryToSplunk.Success
+      Namespace: AWS/Firehose
+      Period: 60
+      Statistic: Maximum
+      Threshold: 1
+      Unit: Count
+
+
+Outputs:
+  cloudTrailOrgS3BucketArn:
+    Value: !GetAtt cloudTrailOrgS3Bucket.Arn
+  cloudTrailOrgS3BucketNotificationSQSQueueArn:
+    Value: !GetAtt cloudTrailOrgS3BucketNotificationSQSQueue.Arn
+  cloudTraiLOrgFirehoseArn:
+    Value: !GetAtt cloudTraiLOrgFirehose.Arn
+  cloudTrailOrgFirehoseIAMRoleArn:
+    Value: !GetAtt cloudTrailOrgFirehoseIAMRole.Arn
+  cloudTrailOrgFirehoseBacksplashBucketArn:
+    Value: !GetAtt cloudTrailOrgFirehoseBacksplashBucket.Arn
+  cloudTrailOrgFirehoseLogGroupArn:
+    Value: !GetAtt cloudTrailOrgFirehoseLogGroup.Arn
+  cloudTrailOrgLambdaFunctionArn:
+    Value: !GetAtt cloudTrailOrgLambdaFunction.Arn
+  cloudTrailOrgLambdaIAMRoleArn:
+    Value: !GetAtt cloudTrailOrgLambdaIAMRole.Arn
+  cloudTrailOrgLambdaLogGroupArn:
+    Value: !GetAtt cloudTrailOrgLambdaLogGroup.Arn
+  monitoringSNSTopicArn:
+    Condition: enableAlerting
+    Value: !Ref monitoringSNSTopic

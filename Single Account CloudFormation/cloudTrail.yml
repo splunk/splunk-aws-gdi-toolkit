@@ -42,6 +42,11 @@ Parameters:
       - true
       - false
 
+  cloudTrailS3FileExpirationInDays:
+    Description: How many days to keep the CloudTrail files in S3.
+    Default: 366
+    Type: String
+
 
 Resources:
   cloudTrail:
@@ -122,6 +127,9 @@ Resources:
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
               Status: Enabled
+            - Id: !Sub "${service}-infralog-bucket-expiration"
+              ExpirationInDays: !Ref cloudTrailS3FileExpirationInDays
+              Status: Enabled
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -158,7 +166,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/${service}-cloudtrail/"
-      RetentionInDays: 30
+      RetentionInDays: 7
 
 
 Outputs:
