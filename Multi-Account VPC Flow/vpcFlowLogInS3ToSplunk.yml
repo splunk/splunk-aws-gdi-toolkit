@@ -1,0 +1,89 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create logging infrastructure for VPC Flow events in an S3 bucket to send to Splunk over HEC via Firehose - https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Type: String
+
+  vpcFlowLogS3FileExpirationInDays:
+    Description: How many days to keep the VPC Flow Log files in S3.
+    Default: 366
+    Type: String
+
+
+Resources:
+  # S3 resources
+  vpcFlowLogS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Sub "${AWS::AccountId}-vpcflowlog-bucket"
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-vpcflowlog-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+            - Id: !Sub "$${AWS::AccountId}-vpcflowlog-bucket-expiration"
+              ExpirationInDays: !Ref vpcFlowLogS3FileExpirationInDays
+              Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  vpcFlowLogS33BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref vpcFlowLogS3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+          Principal: 
+            Service: delivery.logs.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-vpcflowlog-bucket"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            Service: delivery.logs.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-vpcflowlog-bucket/AWSLogs/*"
+          Condition:
+            StringEquals:
+              s3:x-amz-acl: bucket-owner-full-control
+
+
+
+Outputs:
+  vpcFlowLogS3BucketArn:
+    Value: !GetAtt vpcFlowLogS3Bucket.Arn
