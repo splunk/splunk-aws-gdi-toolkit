@@ -130,30 +130,48 @@
 		"ds_FFly4UzK": {
 			"type": "ds.search",
 			"options": {
-				"query": "`cloudTrailIndex` sourcetype=aws:cloudtrail\n| timechart dc(recipientAccountId) as accountCount"
+				"query": "index=$cloudtrailIndex$ sourcetype=aws:cloudtrail\n| timechart dc(recipientAccountId) as accountCount"
 			},
 			"name": "accountCountTimechart"
 		},
 		"ds_noJxIRWy": {
 			"type": "ds.search",
 			"options": {
-				"query": "`cloudTrailIndex` sourcetype=aws:cloudtrail\n| stats dc(recipientAccountId) as accountCount"
+				"query": "index=$cloudtrailIndex$ sourcetype=aws:cloudtrail\n| stats dc(recipientAccountId) as accountCount"
 			},
 			"name": "accountCountTotal"
 		},
 		"ds_srz6OcK5": {
 			"type": "ds.search",
 			"options": {
-				"query": "`cloudTrailIndex` sourcetype=aws:cloudtrail \n| eval eventLatency = abs(_indextime - _time)\n| timechart avg(eventLatency) as eventLatency"
+				"query": "index=$cloudtrailIndex$ sourcetype=aws:cloudtrail \n| eval eventLatency = abs(_indextime - _time)\n| timechart avg(eventLatency) as eventLatency"
 			},
 			"name": "eventLatencyBase"
 		},
 		"ds_tCds3VFx": {
 			"type": "ds.search",
 			"options": {
-				"query": "`cloudTrailIndex` sourcetype=aws:cloudtrail | head 1\n| eval eventLatency = abs(_indextime - _time)\n| table eventLatency"
+				"query": "index=$cloudtrailIndex$ sourcetype=aws:cloudtrail | head 1\n| eval eventLatency = abs(_indextime - _time)\n| table eventLatency"
 			},
 			"name": "eventLatencyLatest"
+		},
+		"ds_N5KOizZ9": {
+			"type": "ds.search",
+			"options": {
+				"query": "| tstats count by index",
+				"queryParameters": {
+					"earliest": "$global_time.earliest$",
+					"latest": "$global_time.latest$"
+				}
+			},
+			"name": "indexList"
+		},
+		"ds_ZE60GhcY_ds_noJxIRWy": {
+			"type": "ds.search",
+			"options": {
+				"query": "index=$cloudtrailIndex$ sourcetype=aws:cloudtrail\n| stats dc(recipientAccountId) as accountCount"
+			},
+			"name": "Copy of accountCountTotal"
 		}
 	},
 	"defaults": {
@@ -176,6 +194,23 @@
 				"defaultValue": "-24h@h,now"
 			},
 			"title": "Global Time Range"
+		},
+		"input_9rNFa8NM": {
+			"options": {
+				"items": [
+					{
+						"label": "main",
+						"value": "main"
+					}
+				],
+				"defaultValue": "main",
+				"token": "cloudtrailIndex"
+			},
+			"title": "CloudTrail Index",
+			"type": "input.dropdown",
+			"dataSources": {
+				"primary": "ds_N5KOizZ9"
+			}
 		}
 	},
 	"layout": {
@@ -183,12 +218,32 @@
 		"options": {},
 		"structure": [
 			{
+				"item": "viz_eU3T7rCG",
+				"type": "block",
+				"position": {
+					"x": 600,
+					"y": 0,
+					"w": 225,
+					"h": 100
+				}
+			},
+			{
+				"item": "viz_XqNxe7aK",
+				"type": "block",
+				"position": {
+					"x": 825,
+					"y": 0,
+					"w": 375,
+					"h": 100
+				}
+			},
+			{
 				"item": "viz_KMF849o7",
 				"type": "block",
 				"position": {
 					"x": 0,
 					"y": 0,
-					"w": 300,
+					"w": 301,
 					"h": 100
 				}
 			},
@@ -236,35 +291,16 @@
 				"item": "viz_OF3a0hX5",
 				"type": "block",
 				"position": {
-					"x": 300,
+					"x": 301,
 					"y": 0,
-					"w": 300,
-					"h": 100
-				}
-			},
-			{
-				"item": "viz_eU3T7rCG",
-				"type": "block",
-				"position": {
-					"x": 600,
-					"y": 0,
-					"w": 300,
-					"h": 100
-				}
-			},
-			{
-				"item": "viz_XqNxe7aK",
-				"type": "block",
-				"position": {
-					"x": 900,
-					"y": 0,
-					"w": 300,
+					"w": 299,
 					"h": 100
 				}
 			}
 		],
 		"globalInputs": [
-			"input_global_trp"
+			"input_global_trp",
+			"input_9rNFa8NM"
 		]
 	},
 	"description": "",
