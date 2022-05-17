@@ -27,6 +27,34 @@ Parameters:
     Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
     Default: 630
 
+  splunkHECEndpoint:
+    Type: String
+    Description: Destination (URL) that Firehose will send data to.  This should be the event endpoint.
+
+  splunkHECToken:
+    Type: String
+    Description: HEC token Firehose will use to authenticate data being sent to Splunk.
+
+  lambdaProcessorMemorySize:
+    Type: String
+    Description: Size of memory to allocate to Lambda processor.  The higher this number the more memory is allocated and the more expensive the function is to run, but the fater it runs.
+    Default: 1024
+
+  lambdaProcessorTimeout:
+    Type: String
+    Description: How long the Lambda function can run until it times out.
+    Default: 180
+
+  lambdaProcessorBatchSize:
+    Type: String
+    Description: How many SQS messages (aka VPC Flow Log files) to process in a single Lambda execution.
+    Default: 100
+
+  lambdaProcessorBatchingWindowInSeconds:
+    Type: String
+    Description: How long to let SQS messages (aka VPC Flow Log files) queue up before processing them.
+    Default: 60
+
 
 Resources:
   # S3 resources
@@ -133,8 +161,299 @@ Resources:
         - !Ref "vpcFlowLogS3BucketNotificationSQSQueue"
 
 
+  # # Firehose > Splunk resources
+  vpcFlowLogFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      DeliveryStreamName: !Sub "${AWS::AccountId}-vpcflowlog-firehose"
+      DeliveryStreamType: DirectPut
+      SplunkDestinationConfiguration:
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref vpcFlowLogFirehoseLogGroup
+          LogStreamName: "SplunkDelivery"
+        HECAcknowledgmentTimeoutInSeconds: 300
+        HECEndpoint: !Ref splunkHECEndpoint
+        HECEndpointType: "Raw"
+        HECToken: !Ref splunkHECToken
+        RetryOptions:
+          DurationInSeconds: 15
+        S3BackupMode: "FailedEventsOnly"
+        S3Configuration:
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-vpcflowlog-firehose-backsplash-bucket"
+          BufferingHints:
+            IntervalInSeconds: 300
+            SizeInMBs: 5
+          CompressionFormat: "UNCOMPRESSED"
+          Prefix: !Sub "$${AWS::AccountId}-vpcflowlog-firehose"
+          RoleARN: !GetAtt vpcFlowLogFirehoseIAMRole.Arn
+
+  vpcFlowLogFirehoseIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:PutLogEvents
+          Resource: !GetAtt vpcFlowLogFirehoseLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-vpcflowlog-firehose-backsplash-bucket/*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-vpcflowlog-firehose-iam-policy"
+
+  vpcFlowLogFirehoseIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "firehose.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref vpcFlowLogFirehoseIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-vpcflowlog-firehose-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  vpcFlowLogFirehoseBacksplashBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-vpcflowlog-firehose-backsplash-bucket"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-vpcflowlog-firehose-backsplash-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  vpcFlowLogFirehoseLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-vpcflowlog-firehose"
+      RetentionInDays: 30
+
+  vpcFlowLogFirehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref vpcFlowLogFirehoseLogGroup
+      LogStreamName: "SplunkDelivery"
+
+
+  # Lambda resources
+  vpcFlowLogLambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: vpcFlowLogLambdaLogGroup
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        ZipFile: |
+          import boto3, gzip, json, os, sys
+
+          s3Client = boto3.client('s3')
+          firehoseDeliverySreamName = os.environ['firehoseDeliverySreamName']
+          firehoseClient = boto3.client('firehose', region_name=os.environ['AWS_REGION'])
+
+          def retrieveS3Object(record):
+
+            try:
+              # Set bucket and key to retrieve
+              record = json.loads(record['body'])
+              bucket = record['Records'][0]['s3']['bucket']['name']
+              key = record['Records'][0]['s3']['object']['key']
+
+            except:
+              return("SQS message did not contain S3 file information.  Record: " + str(record))
+
+            try:
+              # Download VPC Flow Log file from S3
+              s3Client.download_file(bucket, key, "/tmp/" + key.split("/")[-1] + ".gz")
+            except:
+              return("Unable to download file s3://" + bucket + "/" + key)
+
+            return("Downloaded VPC Flow Log file s3://" + bucket + "/" + key)
+
+
+          def processVPCFlowLogFile(record):
+
+            # Set bucket and key to retrieve
+            record = json.loads(record['body'])
+            bucket = record['Records'][0]['s3']['bucket']['name']
+            key = record['Records'][0]['s3']['object']['key']
+
+            try:
+              with gzip.open("/tmp/" + key.split("/")[-1] + ".gz", "rb") as f:
+                data = f.read().decode("ascii")
+
+            except:
+              return("Unable to decode file s3://" + bucket + "/" + key)
+
+            
+            # Parse VPC Flow Log data
+            try:
+              vpcFlowLogs = data.split("\n")[1:-1] #0 will always be the CSV headers, and -1 will always be empty, so drop both of those.
+            except:
+              return("Unable to parse VPC Flow Log records from s3://" + bucket + "/" + key)
+
+
+            # Send data to Firehose
+            try:
+
+              recordBatch = []
+
+              for vpcFlowLog in vpcFlowLogs:
+                # Add record to recordbatch
+                recordBatch.append({"Data": vpcFlowLog + "\r\n"})
+
+                # If there are more than 250 records or 2MB in the sending queue, send the event to Splunk and clear the queue
+                if (len(recordBatch) > 250 or (sys.getsizeof(recordBatch) > 2000000 )):
+                  firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
+                  recordBatch.clear()
+
+              # Send any remaining records to Splunk
+              if (len(recordBatch) > 0):
+                firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
+                recordBatch.clear()
+
+            except:
+              return("Unable to send record to Firehose s3://" + bucket + "/" + key)
+
+
+            return("Processed VPC Flow Log records from s3://" + bucket + "/" + key)
+
+
+          def handler(event, context):
+
+            for record in event['Records']:
+
+              # Parse SQS message and download file from S3
+              retrievalResult = retrieveS3Object(record)
+              print(retrievalResult)    
+
+              # Process file, only if it was successfully downloaded
+              if ("Downloaded VPC Flow Log file" in retrievalResult):
+                processResult = processVPCFlowLogFile(record)
+                print(processResult)
+      Description: Lambda function for processing SQS messages that contain information for VPC Flow Log files, and sending them to Firehose.
+      Environment:
+        Variables:
+          firehoseDeliverySreamName: !Ref vpcFlowLogFirehose
+      FunctionName: !Sub "${AWS::AccountId}-vpcflowlog-lambda-function"
+      Handler: index.handler
+      MemorySize: !Ref lambdaProcessorMemorySize
+      Role: !GetAtt vpcFlowLogLambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Timeout: !Ref lambdaProcessorTimeout
+
+  vpcFlowLogLambdaIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-vpcflowlog-bucket/*"
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          - firehose:PutRecordBatch
+          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-vpcflowlog-firehose"
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-vpcflowlog-lambda-function*"
+        - Effect: Allow
+          Action:
+          - sqs:ListQueues
+          - sqs:GetQueueAttributes
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+          - sqs:DeleteMessageBatch
+          - sqs:ChangeMessageVisibility
+          Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-vpcflowlog-sqs-queue"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-vpcflowlog-lambda-iam-policy"
+
+  vpcFlowLogLambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref vpcFlowLogLambdaIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-vpcflowlog-lambda-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  vpcFlowLogLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-vpcflowlog-lambda-function"
+      RetentionInDays: 7
+
+  vpcFlowLogLambdaEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: !Ref lambdaProcessorBatchSize
+      Enabled: true
+      EventSourceArn: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-vpcflowlog-sqs-queue"
+      FunctionName: !GetAtt vpcFlowLogLambdaFunction.Arn
+      MaximumBatchingWindowInSeconds: !Ref lambdaProcessorBatchingWindowInSeconds
+
+
 Outputs:
   vpcFlowLogS3BucketArn:
     Value: !GetAtt vpcFlowLogS3Bucket.Arn
   vpcFlowLogS3BucketNotificationSQSQueueArn:
     Value: !GetAtt vpcFlowLogS3BucketNotificationSQSQueue.Arn
+  vpcFlowLogLambdaIAMRoleArn:
+    Value: !GetAtt vpcFlowLogLambdaIAMRole.Arn
