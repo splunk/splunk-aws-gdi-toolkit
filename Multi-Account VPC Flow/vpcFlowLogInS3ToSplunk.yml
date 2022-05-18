@@ -55,6 +55,14 @@ Parameters:
     Description: How long to let SQS messages (aka VPC Flow Log files) queue up before processing them.
     Default: 60
 
+  cloudWatchAlertEmail:
+    Type: String
+    Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
+
+
+Conditions:
+  enableAlerting: !Not [!Equals [!Ref cloudWatchAlertEmail, ""]]
+
 
 Resources:
   # S3 resources
@@ -450,10 +458,98 @@ Resources:
       MaximumBatchingWindowInSeconds: !Ref lambdaProcessorBatchingWindowInSeconds
 
 
+  # Monitoring resoruces
+  monitoringSNSTopic:
+    Condition: enableAlerting
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AWS::AccountId}-vpcflowlog-alerting-topic"
+      TopicName: !Sub "${AWS::AccountId}-vpcflowlog-alerting-topic"
+      Subscription:
+        - Endpoint: !Ref cloudWatchAlertEmail
+          Protocol: email
+
+  vpcFlowLogLambdaInvocationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-vpcflowlog-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
+      AlarmName: !Sub "${AWS::AccountId}-vpcflowlog-lambda-error-invocations"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-vpcflowlog-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+      Unit: Count
+
+  vpcFlowLogLambdaDurationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-vpcflowlog-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
+      AlarmName: !Sub "${AWS::AccountId}-vpcflowlog-lambda-error-duration"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-vpcflowlog-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Maximum
+      Threshold: 300000
+      Unit: Milliseconds
+
+  vpcFlowLogFirehoseDeliveryAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-vpcflowlog-firehose cannot deliver to Splunk."
+      AlarmName: !Sub "${AWS::AccountId}-vpcflowlog-firehose-delivery-alarm"
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DeliveryStreamName
+        Value: !Sub "${AWS::AccountId}-vpcflowlog-firehose"
+      EvaluationPeriods: 1
+      MetricName: DeliveryToSplunk.Success
+      Namespace: AWS/Firehose
+      Period: 60
+      Statistic: Maximum
+      Threshold: 1
+      Unit: Count
+
+
 Outputs:
   vpcFlowLogS3BucketArn:
     Value: !GetAtt vpcFlowLogS3Bucket.Arn
   vpcFlowLogS3BucketNotificationSQSQueueArn:
     Value: !GetAtt vpcFlowLogS3BucketNotificationSQSQueue.Arn
+  vpcFlowLogFirehoseIAMRoleArn:
+    Value: !GetAtt vpcFlowLogFirehoseIAMRole.Arn
+  vpcFlowLogFirehoseBacksplashBucketArn:
+    Value: !GetAtt vpcFlowLogFirehoseBacksplashBucket.Arn
+  vpcFlowLogFirehoseLogGroupArn:
+    Value: !GetAtt vpcFlowLogFirehoseLogGroup.Arn
+  vpcFlowLogLambdaFunctionArn:
+    Value: !GetAtt vpcFlowLogLambdaFunction.Arn
   vpcFlowLogLambdaIAMRoleArn:
     Value: !GetAtt vpcFlowLogLambdaIAMRole.Arn
+  vpcFlowLogLambdaLogGroupArn:
+    Value: !GetAtt vpcFlowLogLambdaLogGroup.Arn
+  monitoringSNSTopicArn:
+    Condition: enableAlerting
+    Value: !Ref monitoringSNSTopic
