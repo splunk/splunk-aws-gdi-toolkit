@@ -35,6 +35,26 @@ Parameters:
     Type: String
     Description: HEC token Firehose will use to authenticate data being sent to Splunk.
 
+  lambdaProcessorMemorySize:
+    Type: String
+    Description: Size of memory to allocate to Lambda processor.  The higher this number the more memory is allocated and the more expensive the function is to run, but the fater it runs.
+    Default: 1024
+
+  lambdaProcessorTimeout:
+    Type: String
+    Description: How long the Lambda function can run until it times out.
+    Default: 180
+
+  lambdaProcessorBatchSize:
+    Type: String
+    Description: How many SQS messages (aka ELB log files) to process in a single Lambda execution.
+    Default: 100
+
+  lambdaProcessorBatchingWindowInSeconds:
+    Type: String
+    Description: How long to let SQS messages (aka ELB log files) queue up before processing them.
+    Default: 60
+
 
 Mappings:
   RegionMapping:
@@ -171,7 +191,7 @@ Resources:
   elbLogS3BucketNotificationSQSQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${AWS::AccountId}-${AWS::Region}-${AWS::Region}-elblog-sqs-queue"
+      QueueName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-sqs-queue"
       Tags:
       - Key: service
         Value: !Ref service
@@ -307,6 +327,193 @@ Resources:
     Properties: 
       LogGroupName: !Ref elbLogFirehoseLogGroup
       LogStreamName: "SplunkDelivery"
+
+  # Lambda resources
+  elbLogLambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: elbLogLambdaLogGroup
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        ZipFile: |
+          import boto3, gzip, json, os, sys
+
+          s3Client = boto3.client('s3')
+          firehoseDeliverySreamName = os.environ['firehoseDeliverySreamName']
+          firehoseClient = boto3.client('firehose', region_name=os.environ['AWS_REGION'])
+
+          def retrieveS3Object(record):
+
+            try:
+              # Set bucket and key to retrieve
+              record = json.loads(record['body'])
+              bucket = record['Records'][0]['s3']['bucket']['name']
+              key = record['Records'][0]['s3']['object']['key']
+
+            except:
+              return("SQS message did not contain S3 file information.  Record: " + str(record))
+
+            try:
+              # Download ELB log file from S3
+              s3Client.download_file(bucket, key, "/tmp/" + key.split("/")[-1])
+            except:
+              return("Unable to download file s3://" + bucket + "/" + key)
+
+            return("Downloaded ELB log file s3://" + bucket + "/" + key)
+
+
+          def processELBLogFile(record):
+
+            # Set bucket and key to retrieve
+            record = json.loads(record['body'])
+            bucket = record['Records'][0]['s3']['bucket']['name']
+            key = record['Records'][0]['s3']['object']['key']
+
+            if (key[-7:] == ".log.gz"):
+              try:
+                with gzip.open("/tmp/" + key.split("/")[-1], "rb") as f:
+                  data = f.read().decode("ascii")
+              except:
+                return("Unable to decode file s3://" + bucket + "/" + key)
+            elif (key[-4:] == ".log"):
+              try:
+                with open("/tmp/" + key.split("/")[-1], "rb") as f:
+                  data = f.read().decode("ascii")
+              except:
+                return("Unable to decode file s3://" + bucket + "/" + key)
+            else:
+              return("Unable to decode file s3://" + bucket + "/" + key)
+
+            # Parse ELB logs
+            try:
+              elbLogs = data.split("\n")
+            except:
+              return("Unable to parse ELB logs from s3://" + bucket + "/" + key)
+
+            # Send data to Firehose
+            try:
+
+              recordBatch = []
+
+              for elbLog in elbLogs:
+                # Add record to recordbatch
+                recordBatch.append({"Data": elbLog + "\r\n"})
+
+                # If there are more than 250 records or 2MB in the sending queue, send the event to Splunk and clear the queue
+                if (len(recordBatch) > 250 or (sys.getsizeof(recordBatch) > 2000000 )):
+                  firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
+                  recordBatch.clear()
+
+              # Send any remaining records to Splunk
+              if (len(recordBatch) > 0):
+                firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
+                recordBatch.clear()
+
+            except:
+              return("Unable to send record to Firehose s3://" + bucket + "/" + key)
+
+
+            return("Processed ELB logs from s3://" + bucket + "/" + key)
+
+
+          def handler(event, context):
+
+            for record in event['Records']:
+
+              # Parse SQS message and download file from S3
+              retrievalResult = retrieveS3Object(record)
+              print(retrievalResult)    
+
+              # Process file, only if it was successfully downloaded
+              if ("Downloaded ELB log file" in retrievalResult):
+                processResult = processELBLogFile(record)
+                print(processResult)
+      Description: Lambda function for processing SQS messages that contain information for ELB logs files, and sending them to Firehose.
+      Environment:
+        Variables:
+          firehoseDeliverySreamName: !Ref elbLogFirehose
+      FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-lambda-function"
+      Handler: index.handler
+      MemorySize: !Ref lambdaProcessorMemorySize
+      Role: !GetAtt elbLogLambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Timeout: !Ref lambdaProcessorTimeout
+
+  elbLogLambdaIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-elblog-bucket/*"
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          - firehose:PutRecordBatch
+          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-elblog-firehose"
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-${AWS::Region}-elblog-lambda-function*"
+        - Effect: Allow
+          Action:
+          - sqs:ListQueues
+          - sqs:GetQueueAttributes
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+          - sqs:DeleteMessageBatch
+          - sqs:ChangeMessageVisibility
+          Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-${AWS::Region}-elblog-sqs-queue"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-lambda-iam-policy"
+
+  elbLogLambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref elbLogLambdaIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-lambda-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  elbLogLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-${AWS::Region}-elblog-lambda-function"
+      RetentionInDays: 7
+
+  elbLogLambdaEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: !Ref lambdaProcessorBatchSize
+      Enabled: true
+      EventSourceArn: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-${AWS::Region}-elblog-sqs-queue"
+      FunctionName: !GetAtt elbLogLambdaFunction.Arn
+      MaximumBatchingWindowInSeconds: !Ref lambdaProcessorBatchingWindowInSeconds
 
 
 Outputs:
