@@ -236,8 +236,8 @@ Resources:
         - Effect: Allow
           Action:
           - s3:PutObject
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-elblog-firehose-backsplash-bucket/*"
-      ManagedPolicyName: !Sub "${AWS::AccountId}-elblog-firehose-iam-policy"
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-elblog-firehose-backsplash-bucket/*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose-iam-policy"
 
   elbLogFirehoseIAMRole:
     Type: AWS::IAM::Role
@@ -252,7 +252,7 @@ Resources:
             - sts:AssumeRole
       ManagedPolicyArns:
         - !Ref elbLogFirehoseIAMPolicy
-      RoleName: !Sub "${AWS::AccountId}-elblog-firehose-iam-role"
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose-iam-role"
       Tags:
       - Key: service
         Value: !Ref service
