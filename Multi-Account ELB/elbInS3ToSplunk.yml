@@ -528,8 +528,8 @@ Resources:
     Condition: enableAlerting
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub "${AWS::AccountId}-vpcflowlog-alerting-topic"
-      TopicName: !Sub "${AWS::AccountId}-vpcflowlog-alerting-topic"
+      DisplayName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-alerting-topic"
+      TopicName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-alerting-topic"
       Subscription:
         - Endpoint: !Ref cloudWatchAlertEmail
           Protocol: email
