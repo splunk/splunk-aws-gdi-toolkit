@@ -18,9 +18,15 @@ Parameters:
     Type: String
 
   elbLogS3FileExpirationInDays:
-    Description: How many days to keep the VPC Flow Log files in S3.
+    Description: How many days to keep the ELB log files in S3.
     Default: 366
     Type: String
+
+  sqsQueueVisibilityTimeoutInSecond:
+    Type: String
+    Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
+    Default: 630
+
 
 Mappings:
   RegionMapping:
@@ -102,15 +108,15 @@ Resources:
             - Id: !Sub "$${AWS::AccountId}-${AWS::Region}-elblog-bucket-expiration"
               ExpirationInDays: !Ref elbLogS3FileExpirationInDays
               Status: Enabled
-      # NotificationConfiguration:
-      #   QueueConfigurations:
-      #     - Event: "s3:ObjectCreated:Put"
-      #       Filter:
-      #         S3Key:
-      #           Rules:
-      #             - Name: "suffix"
-      #               Value: ".gz"
-      #       Queue: !GetAtt vpcFlowLogS3BucketNotificationSQSQueue.Arn
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: "s3:ObjectCreated:Put"
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: "suffix"
+                    Value: ".gz"
+            Queue: !GetAtt elbLogS3BucketNotificationSQSQueue.Arn
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -146,6 +152,43 @@ Resources:
             StringEquals:
               s3:x-amz-acl: bucket-owner-full-control
 
+  # S3 notification > SQS resources
+  elbLogS3BucketNotificationSQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${AWS::AccountId}-${AWS::Region}-${AWS::Region}-elblog-sqs-queue"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      VisibilityTimeout: !Ref sqsQueueVisibilityTimeoutInSecond
+
+  elbLogS3BucketNotificationSQSQueuePolicy: 
+    Type: AWS::SQS::QueuePolicy
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-sqs-queuePolicy"
+        Statement:
+        -
+          Sid: Send messages to SQS
+          Effect: Allow
+          Principal:
+            AWS: "*"
+          Action:
+            - "SQS:SendMessage"
+          Resource: "*"
+          Condition:
+            ArnLike: 
+              "aws:SourceARN": !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-elblog-bucket"
+      Queues:
+        - !Ref "elbLogS3BucketNotificationSQSQueue"
+
 Outputs:
   elbLogS3BucketArn:
     Value: !GetAtt elbLogS3Bucket.Arn
+  elbLogS3BucketNotificationSQSQueue:
+    Value: !GetAtt elbLogS3BucketNotificationSQSQueue.Arn
