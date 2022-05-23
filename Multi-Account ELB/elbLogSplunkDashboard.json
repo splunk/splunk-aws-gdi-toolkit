@@ -130,28 +130,28 @@
 		"ds_FFly4UzK": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$cloudtrailIndex$ sourcetype=aws:elb:accesslogs\n| timechart dc(vendor_account) as accountCount"
+				"query": "index=$elbLogIndex$ sourcetype=aws:elb:accesslogs\n| timechart dc(vendor_account) as accountCount"
 			},
 			"name": "accountCountTimechart"
 		},
 		"ds_noJxIRWy": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$cloudtrailIndex$ sourcetype=aws:elb:accesslogs\n| stats dc(vendor_account) as accountCount"
+				"query": "index=$elbLogIndex$ sourcetype=aws:elb:accesslogs\n| stats dc(vendor_account) as accountCount"
 			},
 			"name": "accountCountTotal"
 		},
 		"ds_srz6OcK5": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$cloudtrailIndex$ sourcetype=aws:elb:accesslogs\n| eval eventLatency = abs(_indextime - _time)\n| timechart avg(eventLatency) as eventLatency"
+				"query": "index=$elbLogIndex$ sourcetype=aws:elb:accesslogs\n| eval eventLatency = abs(_indextime - _time)\n| timechart avg(eventLatency) as eventLatency"
 			},
 			"name": "eventLatencyBase"
 		},
 		"ds_tCds3VFx": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$cloudtrailIndex$ sourcetype=aws:elb:accesslogs | head 1\n| eval eventLatency = abs(_indextime - _time)\n| table eventLatency"
+				"query": "index=$elbLogIndex$ sourcetype=aws:elb:accesslogs | head 1\n| eval eventLatency = abs(_indextime - _time)\n| table eventLatency"
 			},
 			"name": "eventLatencyLatest"
 		},
@@ -197,7 +197,7 @@
 					}
 				],
 				"defaultValue": "main",
-				"token": "cloudtrailIndex"
+				"token": "elbLogIndex"
 			},
 			"title": "VPC Flow Log Index",
 			"type": "input.dropdown",
@@ -297,5 +297,5 @@
 		]
 	},
 	"description": "",
-	"title": "Splunk AWS GDI Toolkit - CloudTrail"
+	"title": "Splunk AWS GDI Toolkit - ELB Log"
 }
