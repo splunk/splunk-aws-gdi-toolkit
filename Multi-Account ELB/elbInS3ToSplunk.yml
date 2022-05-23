@@ -27,6 +27,14 @@ Parameters:
     Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
     Default: 630
 
+  splunkHECEndpoint:
+    Type: String
+    Description: Destination (URL) that Firehose will send data to.  This should be the event endpoint.
+
+  splunkHECToken:
+    Type: String
+    Description: HEC token Firehose will use to authenticate data being sent to Splunk.
+
 
 Mappings:
   RegionMapping:
@@ -187,8 +195,123 @@ Resources:
       Queues:
         - !Ref "elbLogS3BucketNotificationSQSQueue"
 
+  # Firehose > Splunk resources
+  elbLogFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose"
+      DeliveryStreamType: DirectPut
+      SplunkDestinationConfiguration:
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref elbLogFirehoseLogGroup
+          LogStreamName: "SplunkDelivery"
+        HECAcknowledgmentTimeoutInSeconds: 300
+        HECEndpoint: !Ref splunkHECEndpoint
+        HECEndpointType: "Raw"
+        HECToken: !Ref splunkHECToken
+        RetryOptions:
+          DurationInSeconds: 15
+        S3BackupMode: "FailedEventsOnly"
+        S3Configuration:
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-elblog-firehose-backsplash-bucket"
+          BufferingHints:
+            IntervalInSeconds: 300
+            SizeInMBs: 5
+          CompressionFormat: "UNCOMPRESSED"
+          Prefix: !Sub "$${AWS::AccountId}-${AWS::Region}-elblog-firehose"
+          RoleARN: !GetAtt elbLogFirehoseIAMRole.Arn
+
+  elbLogFirehoseIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:PutLogEvents
+          Resource: !GetAtt elbLogFirehoseLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-elblog-firehose-backsplash-bucket/*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-elblog-firehose-iam-policy"
+
+  elbLogFirehoseIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "firehose.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref elbLogFirehoseIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-elblog-firehose-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  elbLogFirehoseBacksplashBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose-backsplash-bucket"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose-backsplash-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  elbLogFirehoseLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-elblog-firehose"
+      RetentionInDays: 30
+
+  elbLogFirehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref elbLogFirehoseLogGroup
+      LogStreamName: "SplunkDelivery"
+
+
 Outputs:
   elbLogS3BucketArn:
     Value: !GetAtt elbLogS3Bucket.Arn
   elbLogS3BucketNotificationSQSQueue:
     Value: !GetAtt elbLogS3BucketNotificationSQSQueue.Arn
+  elbLogFirehoseBacksplashBucketArn:
+    Value: !GetAtt elbLogFirehoseBacksplashBucket.Arn
+  elbLogFirehoseIAMRoleArn:
+    Value: !GetAtt elbLogFirehoseIAMRole.Arn
+  elbLogFirehoseLogGroupArn:
+    Value: !GetAtt elbLogFirehoseLogGroup.Arn
+  elbLogFirehoseArn:
+    Value: !GetAtt elbLogFirehose.Arn
