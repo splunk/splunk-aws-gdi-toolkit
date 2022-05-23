@@ -123,7 +123,14 @@ Resources:
               S3Key:
                 Rules:
                   - Name: "suffix"
-                    Value: ".gz"
+                    Value: ".log.gz"
+            Queue: !GetAtt elbLogS3BucketNotificationSQSQueue.Arn
+          - Event: "s3:ObjectCreated:Put"
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: "suffix"
+                    Value: ".log"
             Queue: !GetAtt elbLogS3BucketNotificationSQSQueue.Arn
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
