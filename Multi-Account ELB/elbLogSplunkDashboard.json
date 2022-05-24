@@ -4,7 +4,7 @@
 			"type": "splunk.column",
 			"showProgressBar": false,
 			"showLastUpdated": false,
-			"title": "VPC Flow Log License Usage Over Time (GB)",
+			"title": "ELB Log License Usage Over Time (GB)",
 			"dataSources": {
 				"primary": "ds_6WBt9iY9"
 			},
@@ -14,7 +14,7 @@
 		},
 		"viz_KMF849o7": {
 			"type": "splunk.singlevalue",
-			"title": "VPC Flow Log License Usage",
+			"title": "ELB Log License Usage",
 			"dataSources": {
 				"primary": "ds_HUEXsOZi"
 			},
@@ -27,7 +27,7 @@
 		},
 		"viz_OF3a0hX5": {
 			"type": "splunk.singlevalue",
-			"title": "VPC Flow Log Event Count",
+			"title": "ELB Log Event Count",
 			"dataSources": {
 				"primary": "ds_LN5KxPiz"
 			},
@@ -41,7 +41,7 @@
 			"type": "splunk.line",
 			"showProgressBar": false,
 			"showLastUpdated": false,
-			"title": "VPC Flow Logs Count Over Time",
+			"title": "ELB Logs Count Over Time",
 			"dataSources": {
 				"primary": "ds_7YVGDkt0"
 			},
@@ -51,14 +51,14 @@
 		},
 		"viz_eU3T7rCG": {
 			"type": "splunk.singlevalue",
-			"title": "AWS Accounts Sending VPC Flow Logs",
+			"title": "ELBs Sending  Logs",
 			"dataSources": {
 				"primary": "ds_noJxIRWy"
 			}
 		},
 		"viz_nO6QvmkM": {
 			"type": "splunk.line",
-			"title": "AWS Accounts Sending VPC Flow Logs",
+			"title": "ELBs Sending  Logs",
 			"dataSources": {
 				"primary": "ds_FFly4UzK"
 			},
@@ -96,7 +96,7 @@
 		"ds_6WBt9iY9": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=_internal source=*license_usage* st=aws:cloudwatchlogs:vpcflow NOT source=*license_usage_summary.log*\n| timechart sum(b) as ingestedDataGB\n| eval ingestedDataGB = ingestedDataGB/1024/1024/1024",
+				"query": "index=_internal source=*license_usage* st=aws:elb:accesslogs NOT source=*license_usage_summary.log*\n| timechart sum(b) as ingestedDataGB\n| eval ingestedDataGB = ingestedDataGB/1024/1024/1024",
 				"queryParameters": {
 					"earliest": "$global_time.earliest$",
 					"latest": "$global_time.latest$"
@@ -115,7 +115,7 @@
 		"ds_7YVGDkt0": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=_internal series=\"aws:cloudwatchlogs:vpcflow\" sourcetype=splunkd source=*metrics.log*\n| timechart sum(ev) as eventCount"
+				"query": "index=_internal series=\"aws:elb:accesslogs\" sourcetype=splunkd source=*metrics.log*\n| timechart sum(ev) as eventCount"
 			},
 			"name": "eventCountBase"
 		},
@@ -130,28 +130,28 @@
 		"ds_FFly4UzK": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$vpcFlowLogIndex$ sourcetype=aws:cloudwatchlogs:vpcflow\n| timechart dc(vendor_account) as accountCount"
+				"query": "index=$elbLogIndex$ sourcetype=aws:elb:accesslogs\n| timechart dc(vendor_account) as accountCount"
 			},
 			"name": "accountCountTimechart"
 		},
 		"ds_noJxIRWy": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$vpcFlowLogIndex$ sourcetype=aws:cloudwatchlogs:vpcflow\n| stats dc(vendor_account) as accountCount"
+				"query": "index=$elbLogIndex$ sourcetype=aws:elb:accesslogs\n| stats dc(vendor_account) as accountCount"
 			},
 			"name": "accountCountTotal"
 		},
 		"ds_srz6OcK5": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$vpcFlowLogIndex$ sourcetype=aws:cloudwatchlogs:vpcflow \n| eval eventLatency = abs(_indextime - _time)\n| timechart avg(eventLatency) as eventLatency"
+				"query": "index=$elbLogIndex$ sourcetype=aws:elb:accesslogs\n| eval eventLatency = abs(_indextime - _time)\n| timechart avg(eventLatency) as eventLatency"
 			},
 			"name": "eventLatencyBase"
 		},
 		"ds_tCds3VFx": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$vpcFlowLogIndex$ sourcetype=aws:cloudwatchlogs:vpcflow | head 1\n| eval eventLatency = abs(_indextime - _time)\n| table eventLatency"
+				"query": "index=$elbLogIndex$ sourcetype=aws:elb:accesslogs | head 1\n| eval eventLatency = abs(_indextime - _time)\n| table eventLatency"
 			},
 			"name": "eventLatencyLatest"
 		},
@@ -165,13 +165,6 @@
 				}
 			},
 			"name": "indexList"
-		},
-		"ds_ZE60GhcY_ds_noJxIRWy": {
-			"type": "ds.search",
-			"options": {
-				"query": "index=$vpcFlowLogIndex$ sourcetype=aws:cloudwatchlogs:vpcflow\n| stats dc(recipientAccountId) as accountCount"
-			},
-			"name": "Copy of accountCountTotal"
 		}
 	},
 	"defaults": {
@@ -204,7 +197,7 @@
 					}
 				],
 				"defaultValue": "main",
-				"token": "vpcFlowLogIndex"
+				"token": "elbLogIndex"
 			},
 			"title": "VPC Flow Log Index",
 			"type": "input.dropdown",
@@ -304,5 +297,5 @@
 		]
 	},
 	"description": "",
-	"title": "Splunk AWS GDI Toolkit - VPC Flow Log"
+	"title": "Splunk AWS GDI Toolkit - ELB Log"
 }

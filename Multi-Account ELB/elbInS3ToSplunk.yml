@@ -1,0 +1,616 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create logging infrastructure for ELB logs in an S3 bucket to send to Splunk over HEC via Firehose - https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-access-logs.html
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Type: String
+
+  elbLogS3FileExpirationInDays:
+    Description: How many days to keep the ELB log files in S3.
+    Default: 366
+    Type: String
+
+  sqsQueueVisibilityTimeoutInSecond:
+    Type: String
+    Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
+    Default: 630
+
+  splunkHECEndpoint:
+    Type: String
+    Description: Destination (URL) that Firehose will send data to.  This should be the event endpoint.
+
+  splunkHECToken:
+    Type: String
+    Description: HEC token Firehose will use to authenticate data being sent to Splunk.
+
+  lambdaProcessorMemorySize:
+    Type: String
+    Description: Size of memory to allocate to Lambda processor.  The higher this number the more memory is allocated and the more expensive the function is to run, but the fater it runs.
+    Default: 1024
+
+  lambdaProcessorTimeout:
+    Type: String
+    Description: How long the Lambda function can run until it times out.
+    Default: 180
+
+  lambdaProcessorBatchSize:
+    Type: String
+    Description: How many SQS messages (aka ELB log files) to process in a single Lambda execution.
+    Default: 100
+
+  lambdaProcessorBatchingWindowInSeconds:
+    Type: String
+    Description: How long to let SQS messages (aka ELB log files) queue up before processing them.
+    Default: 60
+
+  cloudWatchAlertEmail:
+    Type: String
+    Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
+
+
+Conditions:
+  enableAlerting: !Not [!Equals [!Ref cloudWatchAlertEmail, ""]]
+
+
+Mappings:
+  RegionMapping:
+    us-east-1:
+      elbAccountIDPrincipal: arn:aws:iam::127311923021:root
+    us-east-2:
+      elbAccountIDPrincipal: arn:aws:iam::033677994240:root
+    us-west-1:
+      elbAccountIDPrincipal: arn:aws:iam::027434742980:root
+    us-west-2:
+      elbAccountIDPrincipal: arn:aws:iam::797873946194:root
+    af-south-1:
+      elbAccountIDPrincipal: arn:aws:iam::098369216593:root
+    ca-central-1:
+      elbAccountIDPrincipal: arn:aws:iam::985666609251:root
+    eu-central-1:
+      elbAccountIDPrincipal: arn:aws:iam::054676820928:root
+    eu-west-1:
+      elbAccountIDPrincipal: arn:aws:iam::156460612806:root
+    eu-west-2:
+      elbAccountIDPrincipal: arn:aws:iam::652711504416:root
+    eu-south-1:
+      elbAccountIDPrincipal: arn:aws:iam::635631232127:root
+    eu-west-3:
+      elbAccountIDPrincipal: arn:aws:iam::009996457667:root
+    eu-north-1:
+      elbAccountIDPrincipal: arn:aws:iam::897822967062:root
+    ap-east-1:
+      elbAccountIDPrincipal: arn:aws:iam::754344448648:root
+    ap-northeast-1:
+      elbAccountIDPrincipal: arn:aws:iam::582318560864:root
+    ap-northeast-2:
+      elbAccountIDPrincipal: arn:aws:iam::600734575887:root
+    ap-northeast-3:
+      elbAccountIDPrincipal: arn:aws:iam::383597477331:root
+    ap-southeast-1:
+      elbAccountIDPrincipal: arn:aws:iam::114774131450:root
+    ap-southeast-2:
+      elbAccountIDPrincipal: arn:aws:iam::783225319266:root
+    ap-southeast-3:
+      elbAccountIDPrincipal: arn:aws:iam::589379963580:root
+    ap-south-1:
+      elbAccountIDPrincipal: arn:aws:iam::718504428378:root
+    me-south-1:
+      elbAccountIDPrincipal: arn:aws:iam::076674570225:root
+    sa-east-1:
+      elbAccountIDPrincipal: arn:aws:iam::507241528517:root
+    us-gov-west-1:
+      elbAccountIDPrincipal: arn:aws:iam::048591011584:root
+    us-gov-east-1:
+      elbAccountIDPrincipal: arn:aws:iam::190560391635:root
+    cn-north-1:
+      elbAccountIDPrincipal: arn:aws:iam::638102146993:root
+    cn-northwest-1:
+      elbAccountIDPrincipal: arn:aws:iam::037604701340:root
+
+Resources:
+
+  # S3 resources
+  elbLogS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-bucket"
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+            - Id: !Sub "$${AWS::AccountId}-${AWS::Region}-elblog-bucket-expiration"
+              ExpirationInDays: !Ref elbLogS3FileExpirationInDays
+              Status: Enabled
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: "s3:ObjectCreated:Put"
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: "suffix"
+                    Value: ".log.gz"
+            Queue: !GetAtt elbLogS3BucketNotificationSQSQueue.Arn
+          - Event: "s3:ObjectCreated:Put"
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: "suffix"
+                    Value: ".log"
+            Queue: !GetAtt elbLogS3BucketNotificationSQSQueue.Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  elbLogS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref elbLogS3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+          Principal: 
+            Service: logdelivery.elb.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-elblog-bucket"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            AWS: !FindInMap [RegionMapping, !Ref AWS::Region, elbAccountIDPrincipal]
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-elblog-bucket/AWSLogs/*"
+          Condition:
+            StringEquals:
+              s3:x-amz-acl: bucket-owner-full-control
+
+  # S3 notification > SQS resources
+  elbLogS3BucketNotificationSQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-sqs-queue"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      VisibilityTimeout: !Ref sqsQueueVisibilityTimeoutInSecond
+
+  elbLogS3BucketNotificationSQSQueuePolicy: 
+    Type: AWS::SQS::QueuePolicy
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-sqs-queuePolicy"
+        Statement:
+        -
+          Sid: Send messages to SQS
+          Effect: Allow
+          Principal:
+            AWS: "*"
+          Action:
+            - "SQS:SendMessage"
+          Resource: "*"
+          Condition:
+            ArnLike: 
+              "aws:SourceARN": !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-elblog-bucket"
+      Queues:
+        - !Ref "elbLogS3BucketNotificationSQSQueue"
+
+  # Firehose > Splunk resources
+  elbLogFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose"
+      DeliveryStreamType: DirectPut
+      SplunkDestinationConfiguration:
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref elbLogFirehoseLogGroup
+          LogStreamName: "SplunkDelivery"
+        HECAcknowledgmentTimeoutInSeconds: 300
+        HECEndpoint: !Ref splunkHECEndpoint
+        HECEndpointType: "Raw"
+        HECToken: !Ref splunkHECToken
+        RetryOptions:
+          DurationInSeconds: 15
+        S3BackupMode: "FailedEventsOnly"
+        S3Configuration:
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-elblog-firehose-backsplash-bucket"
+          BufferingHints:
+            IntervalInSeconds: 300
+            SizeInMBs: 5
+          CompressionFormat: "UNCOMPRESSED"
+          Prefix: !Sub "$${AWS::AccountId}-${AWS::Region}-elblog-firehose"
+          RoleARN: !GetAtt elbLogFirehoseIAMRole.Arn
+
+  elbLogFirehoseIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:PutLogEvents
+          Resource: !GetAtt elbLogFirehoseLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-elblog-firehose-backsplash-bucket/*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose-iam-policy"
+
+  elbLogFirehoseIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "firehose.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref elbLogFirehoseIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  elbLogFirehoseBacksplashBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose-backsplash-bucket"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose-backsplash-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  elbLogFirehoseLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-elblog-firehose"
+      RetentionInDays: 30
+
+  elbLogFirehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref elbLogFirehoseLogGroup
+      LogStreamName: "SplunkDelivery"
+
+  # Lambda resources
+  elbLogLambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: elbLogLambdaLogGroup
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        ZipFile: |
+          import boto3, gzip, json, os, sys
+
+          s3Client = boto3.client('s3')
+          firehoseDeliverySreamName = os.environ['firehoseDeliverySreamName']
+          firehoseClient = boto3.client('firehose', region_name=os.environ['AWS_REGION'])
+
+          def retrieveS3Object(record):
+
+            try:
+              # Set bucket and key to retrieve
+              record = json.loads(record['body'])
+              bucket = record['Records'][0]['s3']['bucket']['name']
+              key = record['Records'][0]['s3']['object']['key']
+
+            except:
+              return("SQS message did not contain S3 file information.  Record: " + str(record))
+
+            try:
+              # Download ELB log file from S3
+              s3Client.download_file(bucket, key, "/tmp/" + key.split("/")[-1])
+            except:
+              return("Unable to download file s3://" + bucket + "/" + key)
+
+            return("Downloaded ELB log file s3://" + bucket + "/" + key)
+
+
+          def processELBLogFile(record):
+
+            # Set bucket and key to retrieve
+            record = json.loads(record['body'])
+            bucket = record['Records'][0]['s3']['bucket']['name']
+            key = record['Records'][0]['s3']['object']['key']
+
+            if (key[-7:] == ".log.gz"):
+              try:
+                with gzip.open("/tmp/" + key.split("/")[-1], "rb") as f:
+                  data = f.read().decode("ascii")
+              except:
+                return("Unable to decode file s3://" + bucket + "/" + key)
+            elif (key[-4:] == ".log"):
+              try:
+                with open("/tmp/" + key.split("/")[-1], "rb") as f:
+                  data = f.read().decode("ascii")
+              except:
+                return("Unable to decode file s3://" + bucket + "/" + key)
+            else:
+              return("Unable to decode file s3://" + bucket + "/" + key)
+
+            # Parse ELB logs
+            try:
+              elbLogs = data.split("\n")
+            except:
+              return("Unable to parse ELB logs from s3://" + bucket + "/" + key)
+
+            # Send data to Firehose
+            try:
+
+              recordBatch = []
+
+              for elbLog in elbLogs:
+                # Add record to recordbatch
+                recordBatch.append({"Data": elbLog + "\r\n"})
+
+                # If there are more than 250 records or 2MB in the sending queue, send the event to Splunk and clear the queue
+                if (len(recordBatch) > 250 or (sys.getsizeof(recordBatch) > 2000000 )):
+                  firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
+                  recordBatch.clear()
+
+              # Send any remaining records to Splunk
+              if (len(recordBatch) > 0):
+                firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
+                recordBatch.clear()
+
+            except:
+              return("Unable to send record to Firehose s3://" + bucket + "/" + key)
+
+
+            return("Processed ELB logs from s3://" + bucket + "/" + key)
+
+
+          def handler(event, context):
+
+            for record in event['Records']:
+
+              # Parse SQS message and download file from S3
+              retrievalResult = retrieveS3Object(record)
+              print(retrievalResult)    
+
+              # Process file, only if it was successfully downloaded
+              if ("Downloaded ELB log file" in retrievalResult):
+                processResult = processELBLogFile(record)
+                print(processResult)
+      Description: Lambda function for processing SQS messages that contain information for ELB logs files, and sending them to Firehose.
+      Environment:
+        Variables:
+          firehoseDeliverySreamName: !Ref elbLogFirehose
+      FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-lambda-function"
+      Handler: index.handler
+      MemorySize: !Ref lambdaProcessorMemorySize
+      Role: !GetAtt elbLogLambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Timeout: !Ref lambdaProcessorTimeout
+
+  elbLogLambdaIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-elblog-bucket/*"
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          - firehose:PutRecordBatch
+          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-elblog-firehose"
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-${AWS::Region}-elblog-lambda-function*"
+        - Effect: Allow
+          Action:
+          - sqs:ListQueues
+          - sqs:GetQueueAttributes
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+          - sqs:DeleteMessageBatch
+          - sqs:ChangeMessageVisibility
+          Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-${AWS::Region}-elblog-sqs-queue"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-lambda-iam-policy"
+
+  elbLogLambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref elbLogLambdaIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-lambda-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  elbLogLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-${AWS::Region}-elblog-lambda-function"
+      RetentionInDays: 7
+
+  elbLogLambdaEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: !Ref lambdaProcessorBatchSize
+      Enabled: true
+      EventSourceArn: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-${AWS::Region}-elblog-sqs-queue"
+      FunctionName: !GetAtt elbLogLambdaFunction.Arn
+      MaximumBatchingWindowInSeconds: !Ref lambdaProcessorBatchingWindowInSeconds
+
+  # Monitoring resoruces
+  monitoringSNSTopic:
+    Condition: enableAlerting
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-alerting-topic"
+      TopicName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-alerting-topic"
+      Subscription:
+        - Endpoint: !Ref cloudWatchAlertEmail
+          Protocol: email
+
+  elbLogLambdaInvocationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-elblog-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-lambda-error-invocations"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+      Unit: Count
+
+  elbLogLambdaDurationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-elblog-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-lambda-error-duration"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Maximum
+      Threshold: 300000
+      Unit: Milliseconds
+
+  elbLogFirehoseDeliveryAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-${AWS::Region}-elblog-firehose cannot deliver to Splunk."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose-delivery-alarm"
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DeliveryStreamName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-elblog-firehose"
+      EvaluationPeriods: 1
+      MetricName: DeliveryToSplunk.Success
+      Namespace: AWS/Firehose
+      Period: 60
+      Statistic: Maximum
+      Threshold: 1
+      Unit: Count
+
+
+Outputs:
+  elbLogS3BucketArn:
+    Value: !GetAtt elbLogS3Bucket.Arn
+  elbLogS3BucketNotificationSQSQueue:
+    Value: !GetAtt elbLogS3BucketNotificationSQSQueue.Arn
+  elbLogFirehoseBacksplashBucketArn:
+    Value: !GetAtt elbLogFirehoseBacksplashBucket.Arn
+  elbLogFirehoseIAMRoleArn:
+    Value: !GetAtt elbLogFirehoseIAMRole.Arn
+  elbLogFirehoseLogGroupArn:
+    Value: !GetAtt elbLogFirehoseLogGroup.Arn
+  elbLogFirehoseArn:
+    Value: !GetAtt elbLogFirehose.Arn
+  monitoringSNSTopicArn:
+    Condition: enableAlerting
+    Value: !Ref monitoringSNSTopic

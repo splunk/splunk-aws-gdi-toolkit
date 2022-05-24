@@ -1,0 +1,126 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a reference CloudFormation template to show how to create ELBs via CloudFormation that send data to an S3 bucket - https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Type: String
+
+  s3BucketName:
+    Description: Destination bucket name that will receive ELB log files.
+    Type: String
+
+  vpcID:
+    Description: VPC the security group and ELBs will reside in
+    Type: AWS::EC2::VPC::Id
+
+  publicSubnetA:
+    Description: Public subnet in AZ A
+    Type: AWS::EC2::Subnet::Id
+
+  publicSubnetB:
+    Description: Public subnet in AZ B
+    Type: AWS::EC2::Subnet::Id
+
+  publicSubnetC:
+    Description: Public subnet in AZ C
+    Type: AWS::EC2::Subnet::Id
+
+Resources:
+
+  # ELB Classic
+  classicELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      AccessLoggingPolicy:
+        EmitInterval: 5
+        Enabled: true
+        S3BucketName: !Ref s3BucketName
+      ConnectionSettings:
+        IdleTimeout: 600
+      HealthCheck:
+        HealthyThreshold: 5
+        Interval: 5
+        Target: HTTP:80/
+        Timeout: 3
+        UnhealthyThreshold: 5
+      Listeners:
+      - LoadBalancerPort: 80
+        InstancePort: 80
+        InstanceProtocol: HTTP
+        Protocol: HTTP
+        PolicyNames:
+        - DefaultSessionTimeout
+      LBCookieStickinessPolicy:
+      - PolicyName: DefaultSessionTimeout
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref loadBalancerSecurityGroup
+      Subnets:
+        - !Ref publicSubnetA
+        - !Ref publicSubnetB
+        - !Ref publicSubnetC
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  # ELB v2 (ALB / NLB)
+  elbv2:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      LoadBalancerAttributes:
+        - Key: access_logs.s3.enabled
+          Value: true
+        - Key: access_logs.s3.bucket
+          Value: !Ref s3BucketName
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref loadBalancerSecurityGroup
+      Subnets:
+        - !Ref publicSubnetA
+        - !Ref publicSubnetB
+        - !Ref publicSubnetC
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+
+  # Security Group for load balancers, not required for ELB log ingest
+  loadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: splunkAWSGDIToolkitLBSG
+      GroupDescription: !Sub "Security group used for sample AWS load balancers."
+      VpcId: !Ref "vpcID"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: "Allow all HTTP traffic in"
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
