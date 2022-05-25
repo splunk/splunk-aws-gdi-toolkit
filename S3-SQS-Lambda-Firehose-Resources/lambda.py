@@ -75,6 +75,29 @@ def uncompressFile(path):
 
 	return(path)
 
+# Process the log file by reading it to memory and sending to Firehose
+def processLogFile(path):
+
+	# Try to read file contents into memory
+	try:
+		with open(path, 'r') as f:
+			events = f.read()
+	except:
+		return("Unable to read file contents into memory")
+
+	# Set extension 
+	extension = path.split(".")[-1]
+
+	# Split events into a list. Additional file extensions should be added here.
+	if (extension == "csv" or extension == "log"):
+		splitEvents = events.split("\n")
+		events.clear()
+
+	elif (extension == "json"):
+		if (SPLUNK_JSON_FORMAT == "eventsInRecords"):
+			splitEvents = json.loads(events)["Records"]
+			events.clear()
+
 
 # Default Lambda handler
 def handler(event, context):
@@ -90,7 +113,6 @@ def handler(event, context):
 			print(objectInfo)
 			continue
 		
-
 		# Retrieve the S3 object and uncompress it
 		downloadResult = downloadS3Object(objectInfo["bucket"], objectInfo["key"])
 		
@@ -99,10 +121,13 @@ def handler(event, context):
 			print(downloadResult)
 			continue
 
-		# Send object info to be uncompressed
+		# Send file info to be uncompressed
 		uncompressResult = uncompressFile(downloadResult)
 
 		# If the file was unable to be compressed, print the error and stop this loop
 		if ("Unable to uncompress file" in uncompressResult):
 			print("Unable to uncompress file s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
 			continue
+
+		# Send file info to be processed
+		processesResult = processLogFile(uncompressResult)
