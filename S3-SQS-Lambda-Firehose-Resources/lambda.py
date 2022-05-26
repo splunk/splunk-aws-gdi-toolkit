@@ -171,7 +171,7 @@ def handler(event, context):
 	for message in event['Records']:
 
 		# Retrieve bucket name and key from SQS message
-		objectInfo = retrieveObjectInfo(record)
+		objectInfo = retrieveObjectInfo(message)
 
 		# If a string was returned instead of a dictionary, print the error and stop this loop
 		if (isinstance(objectInfo, str)):
@@ -196,34 +196,34 @@ def handler(event, context):
 
 		# Try to read the file contents into memory
 		try:
-			with open(path, 'r') as f:
+			with open(uncompressResult, 'r') as f:
 				events = f.read()
 		except:
 			print("Unable to read file contents into memory")
 			continue
 
 		# Set extension 
-		extension = path.split(".")[-1]
+		extension = uncompressResult.split(".")[-1]
 
 		# Split events
-		splitEvents = splitEvents(events, extension)
+		splitEvents = eventBreak(events, extension)
 
 		# If a string was returned instead of a list, print the error and stop this loop
 		if (isinstance(splitEvents, str)):
-			print("File type invalid s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
+			print("File type unsupported s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
 			continue
 
 		# Loop through split events
 		for splitEvent in splitEvents:
 
 			# Get timetamp
-			timestamp = getTimestamp(event)
+			timestamp = getTimestamp(splitEvent)
 
 			# Construct event to send to Splunk
 			event = { "time": timestamp, "host": SPLUNK_HOST, "source": SPLUNK_SOURCE, "sourcetype": SPLUNK_SOURCETYPE, "index": SPLUNK_INDEX, "event":  splitEvent }
 
 			# Buffer and send the evnets to Firehose
-			result = sendEventsToFirehose(str(event), False)
+			result = sendEventsToFirehose(str(splunkEvent), False)
 
 			# Error logging
 			if (result == "Unable to send to Firehose"):
@@ -233,7 +233,7 @@ def handler(event, context):
 		sendEventsToFirehose("", True)
 
 		# Delete the file to clear up space in /tmp to make room for the next one
-		os.remove(path)
+		os.remove(uncompressResult)
 
 		# Logging
 		print("Processed file s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
