@@ -177,6 +177,12 @@ def handler(event, context):
 		if (isinstance(objectInfo, str)):
 			print(objectInfo)
 			continue
+
+		# Validate file types
+		validateFileTypeResult = validateFileType(objectInfo["key"])
+		if ("Invalid file type." in validateFileTypeResult):
+			print("Invalid file type: s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
+			continue
 		
 		# Retrieve the S3 object and uncompress it
 		downloadResult = downloadS3Object(objectInfo["bucket"], objectInfo["key"])
