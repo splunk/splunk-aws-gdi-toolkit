@@ -94,9 +94,9 @@ def uncompressFile(path):
 					shutil.copyfileobj(f_in, f_out)
 
 			# Remove the uncompressed file
-			os.remove(uncompressedFilePath)
+			os.remove(path)
 
-			return(path)
+			return(uncompressedFilePath)
 
 	except:
 		return("Unable to uncompress file")
@@ -105,7 +105,7 @@ def uncompressFile(path):
 
 
 # Split events into a list. Additional file extensions should be added here.
-def splitEvents(events, extension):
+def eventBreak(events, extension):
 
 	if (extension == "csv" or extension == "log"):
 		splitEvents = events.split("\n")
@@ -113,14 +113,14 @@ def splitEvents(events, extension):
 		if (extension == "csv" and SPLUNK_CSV_IGNORE_FIRST_LINE == "true"):
 			splitEvents = splitEvents[1:]
 		
-		events.clear()
+		events = ""
 
 		return splitEvents
 
 	elif (extension == "json"):
 		if (SPLUNK_JSON_FORMAT == "eventsInRecords"):
 			splitEvents = json.loads(events)["Records"]
-			events.clear()
+			events = ""
 
 			return splitEvents
 
