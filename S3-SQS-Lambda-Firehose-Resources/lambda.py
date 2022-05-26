@@ -86,12 +86,23 @@ def splitEvents(events, extension):
 
 	if (extension == "csv" or extension == "log"):
 		splitEvents = events.split("\n")
+
+		if (extension == "csv" and SPLUNK_CSV_IGNORE_FIRST_LINE == "true"):
+			splitEvents = splitEvents[1:]
+		
 		events.clear()
+
+		return splitEvents
 
 	elif (extension == "json"):
 		if (SPLUNK_JSON_FORMAT == "eventsInRecords"):
 			splitEvents = json.loads(events)["Records"]
 			events.clear()
+
+			return splitEvents
+
+	else: 
+		return("File type invalid")
 
 
 # Set timestamp on event
@@ -170,6 +181,11 @@ def handler(event, context):
 
 		# Split events
 		splitEvents = splitEvents(events, extension)
+
+		# If a string was returned instead of a list, print the error and stop this loop
+		if (isinstance(splitEvents, str)):
+			print("File type invalid s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
+			continue
 
 		# Loop through split events
 		for splitEvent in splitEvents:
