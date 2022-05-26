@@ -1,0 +1,51 @@
+---
+
+# Command to run this: ansible-playbook Supporting\ Resources/deployPublicResources.yml
+
+- name: Mangage Stacks
+  hosts: localhost
+  gather_facts: false
+  connection: localhost
+  tasks:
+
+    - name: Create temp folder for resources
+      file:
+        path: "{{ item }}"
+        state: directory
+      with_items:
+        - deploymentStage
+        - deploymentStage/s3-sqs-lambda-firehose-resources-lambda
+
+    - name: Copy resources to the necessary folders
+      copy:
+        src: "../{{ item }}"
+        dest: deploymentStage/s3-sqs-lambda-firehose-resources-lambda/
+      with_items:
+        - S3-SQS-Lambda-Firehose-Resources/lambda.py
+
+    - name: Create a zip archive of lambda function
+      archive:
+        path: "deploymentStage/{{ item }}/"
+        format: zip
+        dest: "deploymentStage/{{ item }}.zip"
+      with_items:
+        - s3-sqs-lambda-firehose-resources-lambda
+
+    - name: Upload zipped files to S3
+      aws_s3:
+        bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
+        object: "{{ item }}"
+        src: "deploymentStage/{{ item }}"
+        mode: put
+        overwrite: always
+        encrypt: true
+        permission: public-read
+      with_items:
+        - s3-sqs-lambda-firehose-resources-lambda.zip
+
+    - name: Create temp folder for resources
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - deploymentStage
