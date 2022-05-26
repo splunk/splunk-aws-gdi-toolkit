@@ -48,12 +48,81 @@ Parameters:
     Type: String
     Description: HEC token Firehose will use to authenticate data being sent to Splunk.
 
+  lambdaProcessorMemorySize:
+    Type: String
+    Description: Size of memory to allocate to Lambda processor.  The higher this number the more memory is allocated and the more expensive the function is to run, but the fater it runs.
+    Default: 1024
+
+  lambdaProcessorTimeout:
+    Type: String
+    Description: How long the Lambda function can run until it times out.
+    Default: 300
+
+  lambdaProcessorBatchSize:
+    Type: String
+    Description: How many SQS messages (aka files from S3) to process in a single Lambda execution.
+    Default: 100
+
+  lambdaProcessorBatchingWindowInSeconds:
+    Type: String
+    Description: How long to let SQS messages (aka files from S3) queue up before processing them.
+    Default: 60
+
+  splunkIndex:
+    Type: String
+    Description: Name of the index in Splunk events will be sent to.
+
+  splunkSourcetype:
+    Type: String
+    Description: Name of the sourcetype for the events that will be sent to Splunk.
+
+  splunkSource:
+    Type: String
+    Description: Name of the source for the events that will be sent to Splunk.
+
+  splunkHost:
+    Type: String
+    Description: Name of the host for the events that will be sent to Splunk.
+
+  splunkTimePrefix:
+    Type: String
+    Description: Text right before the time stamp in the event that will be used to help identify the timestamp.
+
+  splunkTimeFormat:
+    Type: String
+    Description: How the timestamp in the event is formatted.
+    Default: ISO8601
+    AllowedValues:
+      - ISO8601
+
+  splunkJSONFormat:
+    Type: String
+    Description: How the JSON events are formatted.  Leave default if the events are not in JSON format.
+    Default: eventsInRecords
+    AllowedValues:
+      - eventsInRecords
+
+  splunkCSVIgnoreFirstLine:
+    Type: String
+    Description: Whether the first line of the CSV file should be discarded.  Leave default if the events are not in CSV format.
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  cloudWatchAlertEmail:
+    Type: String
+    Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
+
 
 Conditions:
-  createNewS3Bucket: !Not
+  createNewS3Bucket: !Equals
+    - !Ref existingS3BucketName
+    - ""
+  useExistingS3Bucket: !Not
     - !Equals
       - !Ref existingS3BucketName
-      - " "
+      - ""
   cloudTrail: !Equals
     - !Ref logType
     - "cloudtrail"
@@ -82,6 +151,10 @@ Conditions:
   customLogTypeNewBucket: !And
     - !Condition customLogType
     - !Condition createNewS3Bucket
+  enableAlerting: !Not 
+    - !Equals 
+      - !Ref cloudWatchAlertEmail
+      - ""
 
 
 Mappings:
@@ -196,13 +269,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             Service: cloudtrail.amazonaws.com
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"]
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             Service: cloudtrail.amazonaws.com
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"]
 
   s3BucketPolicyVPCFlowLogs:
     Type: AWS::S3::BucketPolicy
@@ -216,13 +289,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             Service: delivery.logs.amazonaws.com
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"]
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             Service: delivery.logs.amazonaws.com
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"]
           Condition:
             StringEquals:
               s3:x-amz-acl: bucket-owner-full-control
@@ -239,13 +312,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             Service: logdelivery.elb.amazonaws.com
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"]
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             AWS: !FindInMap [RegionMapping, !Ref AWS::Region, elbAccountIDPrincipal]
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"]
           Condition:
             StringEquals:
               s3:x-amz-acl: bucket-owner-full-control
@@ -262,13 +335,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             AWS: !Ref roleAccessToS3BucketPut
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"]
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             AWS: !Ref roleAccessToS3BucketPut
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"]
 
   # S3 Notifications > SQS
   s3BucketNotificationSQSQueue:
@@ -303,7 +376,7 @@ Resources:
           Resource: "*"
           Condition:
             ArnLike: 
-              "aws:SourceARN": !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"
+              "aws:SourceARN": !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"]
       Queues:
         - !Ref "s3BucketNotificationSQSQueue"
 
@@ -414,6 +487,185 @@ Resources:
       LogStreamName: "SplunkDelivery"
 
 
+# Lambda resources
+  lambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: lambdaLogGroup
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        S3Bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
+        S3Key: s3-sqs-lambda-firehose-resources-lambda.zip
+      Description: Lambda function for processing SQS messages that contain events, then sending them to firehose to be forwarded to Splunk.
+      Environment:
+        Variables:
+          firehoseDeliverySreamName: !Ref firehose
+          SPLUNK_INDEX: !Ref splunkIndex
+          SPLUNK_TIME_PREFIX: !Ref splunkTimePrefix
+          SPLUNK_TIME_FORMAT: !Ref splunkTimeFormat
+          SPLUNK_SOURCETYPE: !Ref splunkSourcetype
+          SPLUNK_SOURCE: !Ref splunkSource
+          SPLUNK_HOST: !Ref splunkHost
+          SPLUNK_JSON_FORMAT: !Ref splunkJSONFormat
+          SPLUNK_CSV_IGNORE_FIRST_LINE: !Ref splunkCSVIgnoreFirstLine
+      FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
+      Handler: lambda.handler
+      MemorySize: !Ref lambdaProcessorMemorySize
+      Role: !GetAtt lambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Timeout: !Ref lambdaProcessorTimeout
+
+  lambdaIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"]
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          - firehose:PutRecordBatch
+          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function*"
+        - Effect: Allow
+          Action:
+          - sqs:ListQueues
+          - sqs:GetQueueAttributes
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+          - sqs:DeleteMessageBatch
+          - sqs:ChangeMessageVisibility
+          Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-${AWS::Region}-${logType}-sqs-queue"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-iam-policy"
+
+  lambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref lambdaIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  lambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
+      RetentionInDays: 7
+
+  lambdaEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: !Ref lambdaProcessorBatchSize
+      Enabled: true
+      EventSourceArn: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-${AWS::Region}-${logType}-sqs-queue"
+      FunctionName: !GetAtt lambdaFunction.Arn
+      MaximumBatchingWindowInSeconds: !Ref lambdaProcessorBatchingWindowInSeconds
+
+  # Monitoring resoruces
+  monitoringSNSTopic:
+    Condition: enableAlerting
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-alerting-topic"
+      TopicName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-alerting-topic"
+      Subscription:
+        - Endpoint: !Ref cloudWatchAlertEmail
+          Protocol: email
+
+  cloudTrailOrgLambdaInvocationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-error-invocations"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+      Unit: Count
+
+  cloudTrailOrgLambdaDurationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-error-duration"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Maximum
+      Threshold: 300000
+      Unit: Milliseconds
+
+  cloudTrailOrgFirehoseDeliveryAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-${AWS::Region}-${logType}-firehose cannot deliver to Splunk."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-delivery-alarm"
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DeliveryStreamName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+      EvaluationPeriods: 1
+      MetricName: DeliveryToSplunk.Success
+      Namespace: AWS/Firehose
+      Period: 60
+      Statistic: Maximum
+      Threshold: 1
+      Unit: Count
+
+
 Outputs:
   s3BucketArn:
     Condition: createNewS3Bucket
@@ -428,3 +680,12 @@ Outputs:
     Value: !GetAtt firehoseBacksplashBucket.Arn
   firehoseLogGroupArn:
     Value: !GetAtt firehoseLogGroup.Arn
+  lambdaFunctionArn:
+    Value: !GetAtt lambdaFunction.Arn
+  lambdaIAMRoleArn:
+    Value: !GetAtt lambdaIAMRole.Arn
+  lambdaLogGroupArn:
+    Value: !GetAtt lambdaLogGroup.Arn
+  monitoringSNSTopicArn:
+    Condition: enableAlerting
+    Value: !Ref monitoringSNSTopic
