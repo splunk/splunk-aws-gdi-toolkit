@@ -41,6 +41,25 @@ def retrieveObjectInfo(record):
 		return("SQS message did not contain S3 file information.  Record: " + str(record))
 
 
+# Check to see if the file is a valid file type
+def validateFileType(key):
+
+	# Check for invalid file types
+	for unsupportedFileType in unsupportedFileTypes:
+		if (unsupportedFileType in key):
+			return("Unsupported file type.")
+
+	# Define file extension
+	extension = key.split(".")[-1]
+
+	# Check for valid file types
+	for validFileType in validFileTypes:
+		if (extension in validFileType):
+			return("Valid file type.")
+
+	return("Unsupported file type.")
+
+
 # Retrieve the S3 object, and return the new path
 def downloadS3Object(bucket, key):
 
