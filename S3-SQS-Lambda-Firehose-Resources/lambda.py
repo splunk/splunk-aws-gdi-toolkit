@@ -226,7 +226,7 @@ def handler(event, context):
 			timestamp = getTimestamp(splitEvent)
 
 			# Construct event to send to Splunk
-			event = { "time": timestamp, "host": SPLUNK_HOST, "source": SPLUNK_SOURCE, "sourcetype": SPLUNK_SOURCETYPE, "index": SPLUNK_INDEX, "event":  splitEvent }
+			splunkEvent = '{ "time": ' +  str(timestamp) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "' + SPLUNK_SOURCETYPE + '", "index": "' + SPLUNK_INDEX + '", "event":  ' + str(splitEvent) + ' }'
 
 			# Buffer and send the evnets to Firehose
 			result = sendEventsToFirehose(str(splunkEvent), False)
