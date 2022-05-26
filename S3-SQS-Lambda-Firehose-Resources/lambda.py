@@ -7,14 +7,18 @@ firehoseClient = boto3.client('firehose', region_name=os.environ['AWS_REGION'])
 recordBatch = []
 
 # Splunk-related setup
-SPLUNK_INDEX = boto3.client('firehose', region_name=os.environ['SPLUNK_INDEX'])
-SPLUNK_TIME_PREFIX = boto3.client('firehose', region_name=os.environ['SPLUNK_TIME_PREFIX'])
-SPLUNK_TIME_FORMAT = boto3.client('firehose', region_name=os.environ['SPLUNK_TIME_FORMAT'])
-SPLUNK_SOURCETYPE = boto3.client('firehose', region_name=os.environ['SPLUNK_SOURCETYPE'])
-SPLUNK_SOURCE = boto3.client('firehose', region_name=os.environ['SPLUNK_SOURCE'])
-SPLUNK_HOST = boto3.client('firehose', region_name=os.environ['SPLUNK_HOST'])
-SPLUNK_JSON_FORMAT = boto3.client('firehose', region_name=os.environ['SPLUNK_JSON_FORMAT'])
-SPLUNK_CSV_IGNORE_FIRST_LINE = boto3.client('firehose', region_name=os.environ['SPLUNK_CSV_IGNORE_FIRST_LINE'])
+SPLUNK_INDEX = os.environ['SPLUNK_INDEX']
+SPLUNK_TIME_PREFIX = os.environ['SPLUNK_TIME_PREFIX']
+SPLUNK_TIME_FORMAT = os.environ['SPLUNK_TIME_FORMAT']
+SPLUNK_SOURCETYPE = os.environ['SPLUNK_SOURCETYPE']
+SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
+SPLUNK_HOST = os.environ['SPLUNK_HOST']
+SPLUNK_JSON_FORMAT = os.environ['SPLUNK_JSON_FORMAT']
+SPLUNK_CSV_IGNORE_FIRST_LINE = os.environ['SPLUNK_CSV_IGNORE_FIRST_LINE']
+
+# Lambda things
+validFileTypes = ["gz", "gzip", "json", "csv", "log"]
+unsupportedFileTypes = ["CloudTrail-Digest"]
 
 
 # Parse SQS message for bucket information
