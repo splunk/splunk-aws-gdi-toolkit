@@ -42,6 +42,14 @@ Parameters:
     Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
     Default: 630
 
+  splunkHECEndpoint:
+    Type: String
+    Description: Destination (URL) that Firehose will send data to.
+
+  splunkHECToken:
+    Type: String
+    Description: HEC token Firehose will use to authenticate data being sent to Splunk.
+
 
 Conditions:
   createNewS3Bucket: !Not
@@ -301,6 +309,112 @@ Resources:
       Queues:
         - !Ref "s3BucketNotificationSQSQueue"
 
+  # Firehose > Splunk resources
+  firehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+      DeliveryStreamType: DirectPut
+      SplunkDestinationConfiguration:
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref firehoseLogGroup
+          LogStreamName: "SplunkDelivery"
+        HECAcknowledgmentTimeoutInSeconds: 180
+        HECEndpoint: !Ref splunkHECEndpoint
+        HECEndpointType: "Event"
+        HECToken: !Ref splunkHECToken
+        RetryOptions:
+          DurationInSeconds: 300
+        S3BackupMode: "FailedEventsOnly"
+        S3Configuration:
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-bucket"
+          BufferingHints:
+            IntervalInSeconds: 300
+            SizeInMBs: 5
+          CompressionFormat: "UNCOMPRESSED"
+          Prefix: !Sub "$${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+          RoleARN: !GetAtt firehoseIAMRole.Arn
+
+  firehoseIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:PutLogEvents
+          Resource: !GetAtt firehoseLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-bucket/*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-policy"
+
+  firehoseIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "firehose.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref firehoseIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  firehoseBacksplashBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-bucket"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  firehoseLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+      RetentionInDays: 30
+
+  firehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref firehoseLogGroup
+      LogStreamName: "SplunkDelivery"
+
 
 Outputs:
   s3BucketArn:
@@ -308,3 +422,11 @@ Outputs:
     Value: !GetAtt s3Bucket.Arn
   s3BucketNotificationSQSQueueArn:
     Value: !GetAtt s3BucketNotificationSQSQueue.Arn
+  firehoseArn:
+    Value: !GetAtt firehose.Arn
+  firehoseIAMRoleArn:
+    Value: !GetAtt firehoseIAMRole.Arn
+  firehoseBacksplashBucketArn:
+    Value: !GetAtt firehoseBacksplashBucket.Arn
+  firehoseLogGroupArn:
+    Value: !GetAtt firehoseLogGroup.Arn
