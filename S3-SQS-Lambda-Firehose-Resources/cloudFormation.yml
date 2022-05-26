@@ -25,7 +25,6 @@ Parameters:
   existingS3BucketName:
     Type: String
     Description: Name of the existng S3 bucket you want to ingest data to.  Leave this blank to create a new S3 bucket.  If you specify the name of an existing S3 bucket, you'll need to set permissions appropriatly.
-    Default: " "
 
   s3ObjectExpirationInDays:
     Description: How many days to keep the files in S3 before they're deleted.
@@ -35,7 +34,6 @@ Parameters:
   roleAccessToS3BucketPut:
     Type: String
     Description: ARN of the role to allow the putting of objects in the S3 bucket.  Leave blank to auto-detect appropriate settings for CloudTrail, ELB logs, or VPC Flow Logs.
-    Default: " "
 
   sqsQueueVisibilityTimeoutInSecond:
     Type: String
