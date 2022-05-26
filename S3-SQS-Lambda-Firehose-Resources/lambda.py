@@ -131,13 +131,16 @@ def eventBreak(events, extension):
 # Set timestamp on event
 def getTimestamp(event):
 
-	# For ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
-	if (SPLUNK_TIME_FORMAT = "ISO8601"):
-		iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + ".{1,5}(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", str(splitEvent)).group(1) #fix eventTime
-		return(dateutil.parser.parse(iso8601Timestamp).timestamp())
-	# If not standard, set to current time
-	else:
+	try:
+		# For ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
+		if (SPLUNK_TIME_FORMAT == "ISO8601"):
+			iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + ".{1,5}(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", str(event)).group(1) #fix eventTime
+			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
+		# If not standard, set to current time
+	except:
 		return(time.time())
+
+	return(time.time())
 
 # Buffer and send events to Firehose
 def sendEventsToFirehose(event, final):
