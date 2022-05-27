@@ -9,12 +9,14 @@ recordBatch = []
 # Splunk-related setup
 SPLUNK_INDEX = os.environ['SPLUNK_INDEX']
 SPLUNK_TIME_PREFIX = os.environ['SPLUNK_TIME_PREFIX']
+SPLUNK_EVENT_DELIMITER = os.environ['SPLUNK_EVENT_DELIMITER']
+SPLUNK_TIME_DELINIATED_FIELD = os.environ['SPLUNK_TIME_DELINIATED_FIELD']
 SPLUNK_TIME_FORMAT = os.environ['SPLUNK_TIME_FORMAT']
 SPLUNK_SOURCETYPE = os.environ['SPLUNK_SOURCETYPE']
 SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
 SPLUNK_HOST = os.environ['SPLUNK_HOST']
 SPLUNK_JSON_FORMAT = os.environ['SPLUNK_JSON_FORMAT']
-SPLUNK_CSV_IGNORE_FIRST_LINE = os.environ['SPLUNK_CSV_IGNORE_FIRST_LINE']
+SPLUNK_IGNORE_FIRST_LINE = os.environ['SPLUNK_IGNORE_FIRST_LINE']
 
 # Lambda things
 validFileTypes = ["gz", "gzip", "json", "csv", "log"]
@@ -110,7 +112,11 @@ def eventBreak(events, extension):
 	if (extension == "csv" or extension == "log"):
 		splitEvents = events.split("\n")
 
-		if (extension == "csv" and SPLUNK_CSV_IGNORE_FIRST_LINE == "true"):
+		# Remove empty last line if it exists
+		if (len(splitEvents[-1]) == 0):
+			splitEvents = splitEvents[:-1]
+
+		if (SPLUNK_IGNORE_FIRST_LINE == "true"):
 			splitEvents = splitEvents[1:]
 		
 		events = ""
@@ -133,11 +139,18 @@ def getTimestamp(event):
 
 	try:
 		# For ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
-		if (SPLUNK_TIME_FORMAT == "ISO8601"):
+		if (SPLUNK_TIME_FORMAT == "prefix-ISO8601"):
 			iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + ".{1,5}(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", str(event)).group(1) #fix eventTime
 			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
-		# If not standard, set to current time
+		# For field-deliniated epoch time
+		elif (SPLUNK_TIME_FORMAT == "deliniated-epoch"):
+			epochTime = float(splitEvent.split(SPLUNK_EVENT_DELIMITER)[SPLUNK_TIME_DELINIATED_FIELD])
+			return(epochTime)
+		elif (SPLUNK_TIME_FORMAT == "deliniated-ISO8601"):
+			iso8601Timestamp = splitEvent.split(SPLUNK_EVENT_DELIMITER)[SPLUNK_TIME_DELINIATED_FIELD]
+			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
 	except:
+		# If not standard, set to current time
 		return(time.time())
 
 	return(time.time())
