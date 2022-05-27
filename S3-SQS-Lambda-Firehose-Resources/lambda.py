@@ -21,6 +21,15 @@ SPLUNK_IGNORE_FIRST_LINE = os.environ['SPLUNK_IGNORE_FIRST_LINE']
 # Lambda things
 validFileTypes = ["gz", "gzip", "json", "csv", "log"]
 unsupportedFileTypes = ["CloudTrail-Digest"]
+delimiterMapping = {"space": " ", "tab": "	"}
+
+# Create delimeter for delimiting events
+def createDelimeter():
+
+	if (SPLUNK_EVENT_DELIMITER in delimiterMapping.keys()):
+		return delimiterMapping[SPLUNK_EVENT_DELIMITER]
+	else:
+		return SPLUNK_EVENT_DELIMITER
 
 
 # Parse SQS message for bucket information
@@ -135,7 +144,7 @@ def eventBreak(events, extension):
 
 
 # Set timestamp on event
-def getTimestamp(event):
+def getTimestamp(event, delimiter):
 
 	try:
 		# For ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
@@ -144,13 +153,15 @@ def getTimestamp(event):
 			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
 		# For field-deliniated epoch time
 		elif (SPLUNK_TIME_FORMAT == "deliniated-epoch"):
-			epochTime = float(splitEvent.split(SPLUNK_EVENT_DELIMITER)[SPLUNK_TIME_DELINIATED_FIELD])
+			epochTime = float(event.split(delimiter)[SPLUNK_TIME_DELINIATED_FIELD])
 			return(epochTime)
+		# For delinitated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
 		elif (SPLUNK_TIME_FORMAT == "deliniated-ISO8601"):
-			iso8601Timestamp = splitEvent.split(SPLUNK_EVENT_DELIMITER)[SPLUNK_TIME_DELINIATED_FIELD]
+			iso8601Timestamp = event.split(delimiter)[SPLUNK_TIME_DELINIATED_FIELD]
 			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
 	except:
 		# If not standard, set to current time
+		print("Unable to extract timestamp.  Falling back to current time.")
 		return(time.time())
 
 	return(time.time())
@@ -179,6 +190,9 @@ def sendEventsToFirehose(event, final):
 
 # Default Lambda handler
 def handler(event, context):
+
+	# Create deliniated field break
+	delimiter = createDelimeter()
 
 	# Loop through each SQS message
 	for message in event['Records']:
@@ -236,7 +250,7 @@ def handler(event, context):
 		for splitEvent in splitEvents:
 
 			# Get timetamp
-			timestamp = getTimestamp(splitEvent)
+			timestamp = getTimestamp(splitEvent, delimiter)
 
 			# Construct event to send to Splunk
 			splunkEvent = '{ "time": ' +  str(timestamp) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "' + SPLUNK_SOURCETYPE + '", "index": "' + SPLUNK_INDEX + '", "event":  ' + json.dumps(splitEvent) + ' }'
