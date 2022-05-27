@@ -86,7 +86,7 @@ Parameters:
 
   splunkTimePrefix:
     Type: String
-    Description: Text right before the time stamp in the event that will be used to help identify the timestamp.
+    Description: Text right before the time stamp in the event that will be used to help identify the timestamp.  Leave empty if the event is deliniated.
 
   splunkEventDelimiter:
     Type: String
