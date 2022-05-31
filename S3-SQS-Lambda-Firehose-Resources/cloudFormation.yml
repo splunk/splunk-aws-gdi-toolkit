@@ -238,14 +238,14 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
-      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-bucket"
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}"
       LifecycleConfiguration:
         Rules:
-            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-bucket-cleanup"
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-cleanup"
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
               Status: Enabled
-            - Id: !Sub "$${AWS::AccountId}-${AWS::Region}-${logType}-bucket-expiration"
+            - Id: !Sub "$${AWS::AccountId}-${AWS::Region}-${logType}-expiration"
               ExpirationInDays: !Ref s3ObjectExpirationInDays
               Status: Enabled
       NotificationConfiguration:
@@ -279,13 +279,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             Service: cloudtrail.amazonaws.com
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"]
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             Service: cloudtrail.amazonaws.com
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"]
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"]
 
   s3BucketPolicyVPCFlowLogs:
     Type: AWS::S3::BucketPolicy
@@ -299,13 +299,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             Service: delivery.logs.amazonaws.com
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"]
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             Service: delivery.logs.amazonaws.com
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"]
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"]
           Condition:
             StringEquals:
               s3:x-amz-acl: bucket-owner-full-control
@@ -322,13 +322,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             Service: logdelivery.elb.amazonaws.com
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"]
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             AWS: !FindInMap [RegionMapping, !Ref AWS::Region, elbAccountIDPrincipal]
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"]
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"]
           Condition:
             StringEquals:
               s3:x-amz-acl: bucket-owner-full-control
@@ -345,13 +345,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             AWS: !Ref roleAccessToS3BucketPut
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"]
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             AWS: !Ref roleAccessToS3BucketPut
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"]
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"]
 
   # S3 Notifications > SQS
   s3BucketNotificationSQSQueue:
@@ -386,7 +386,7 @@ Resources:
           Resource: "*"
           Condition:
             ArnLike: 
-              "aws:SourceARN": !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket"]
+              "aws:SourceARN": !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
       Queues:
         - !Ref "s3BucketNotificationSQSQueue"
 
@@ -409,7 +409,7 @@ Resources:
           DurationInSeconds: 300
         S3BackupMode: "FailedEventsOnly"
         S3Configuration:
-          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-bucket"
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash"
           BufferingHints:
             IntervalInSeconds: 300
             SizeInMBs: 5
@@ -431,7 +431,7 @@ Resources:
         - Effect: Allow
           Action:
           - s3:PutObject
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-bucket/*"
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash/*"
       ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-policy"
 
   firehoseIAMRole:
@@ -459,7 +459,7 @@ Resources:
   firehoseBacksplashBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-bucket"
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash"
       AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -472,7 +472,7 @@ Resources:
               SSEAlgorithm: AES256
       LifecycleConfiguration:
         Rules:
-            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-bucket-cleanup"
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-cleanup"
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
               Status: Enabled
@@ -544,7 +544,7 @@ Resources:
         - Effect: Allow
           Action:
           - s3:GetObject
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-bucket/*"]
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"]
         - Effect: Allow
           Action:
           - firehose:PutRecord
