@@ -139,6 +139,15 @@ def eventBreak(events, extension):
 
 			return splitEvents
 
+		elif (SPLUNK_JSON_FORMAT == "newLines"):
+			splitEvents = events.split("\n")
+			events = ""
+			
+			if (len(splitEvents[-1]) == 0):
+				splitEvents = splitEvents[:-1]
+
+			return splitEvents
+
 	else: 
 		return("File type invalid")
 
@@ -149,15 +158,21 @@ def getTimestamp(event, delimiter):
 	try:
 		# For ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
 		if (SPLUNK_TIME_FORMAT == "prefix-ISO8601"):
-			iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + ".{1,5}(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", str(event)).group(1) #fix eventTime
+
+			if (len(SPLUNK_TIME_PREFIX) > 0):
+				regexGroupIndex = 2
+			else: 
+				regexGroupIndex = 0
+
+			iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + "(.{1,5})?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{0,10})?Z)", str(event)).group(regexGroupIndex) #fix eventTime
 			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
 		# For field-deliniated epoch time
 		elif (SPLUNK_TIME_FORMAT == "deliniated-epoch"):
-			epochTime = float(event.split(delimiter)[SPLUNK_TIME_DELINIATED_FIELD])
+			epochTime = float(event.split(delimiter)[int(SPLUNK_TIME_DELINIATED_FIELD)])
 			return(epochTime)
 		# For delinitated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
 		elif (SPLUNK_TIME_FORMAT == "deliniated-ISO8601"):
-			iso8601Timestamp = event.split(delimiter)[SPLUNK_TIME_DELINIATED_FIELD]
+			iso8601Timestamp = event.split(delimiter)[int(SPLUNK_TIME_DELINIATED_FIELD)]
 			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
 	except:
 		# If not standard, set to current time
