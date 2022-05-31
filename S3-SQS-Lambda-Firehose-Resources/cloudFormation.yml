@@ -108,9 +108,10 @@ Parameters:
   splunkJSONFormat:
     Type: String
     Description: How the JSON events are formatted.  Leave default if the events are not in JSON format.
-    Default: eventsInRecords
+    Default: newLines
     AllowedValues:
       - eventsInRecords
+      - newLines
 
   splunkIgnoreFirstLine:
     Type: String
