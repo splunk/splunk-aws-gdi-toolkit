@@ -402,12 +402,12 @@ Resources:
           Enabled: true
           LogGroupName: !Ref firehoseLogGroup
           LogStreamName: "SplunkDelivery"
-        HECAcknowledgmentTimeoutInSeconds: 180
+        HECAcknowledgmentTimeoutInSeconds: 300
         HECEndpoint: !Ref splunkHECEndpoint
         HECEndpointType: "Event"
         HECToken: !Ref splunkHECToken
         RetryOptions:
-          DurationInSeconds: 300
+          DurationInSeconds: 3600
         S3BackupMode: "FailedEventsOnly"
         S3Configuration:
           BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash"
