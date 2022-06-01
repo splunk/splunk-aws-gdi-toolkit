@@ -115,7 +115,7 @@ Parameters:
   splunkJSONFormat:
     Type: String
     Description: How the JSON events are formatted.  Leave default if the events are not in JSON format.
-    Default: newLines
+    Default: NDJSON
     AllowedValues:
       - eventsInRecords
       - NDJSON
