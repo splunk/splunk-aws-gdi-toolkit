@@ -117,7 +117,7 @@ Parameters:
     Default: newLines
     AllowedValues:
       - eventsInRecords
-      - newLines
+      - NDJSON
 
   splunkIgnoreFirstLine:
     Type: String

@@ -139,7 +139,7 @@ def eventBreak(events, extension):
 
 			return splitEvents
 
-		elif (SPLUNK_JSON_FORMAT == "newLines"):
+		elif (SPLUNK_JSON_FORMAT == "NDJSON"):
 			splitEvents = events.split("\n")
 			events = ""
 			
