@@ -21,7 +21,7 @@ SPLUNK_IGNORE_FIRST_LINE = os.environ['SPLUNK_IGNORE_FIRST_LINE']
 # Lambda things
 validFileTypes = ["gz", "gzip", "json", "csv", "log"]
 unsupportedFileTypes = ["CloudTrail-Digest"]
-delimiterMapping = {"space": " ", "tab": "	"}
+delimiterMapping = {"space": " ", "tab": "	", "comma": ",", "semicolon": ";"}
 
 # Create delimeter for delimiting events
 def createDelimeter():
