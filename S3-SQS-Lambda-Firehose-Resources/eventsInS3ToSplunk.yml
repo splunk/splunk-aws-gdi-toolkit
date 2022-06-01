@@ -90,17 +90,17 @@ Parameters:
 
   splunkTimePrefix:
     Type: String
-    Description: Text right before the time stamp in the event that will be used to help identify the timestamp.  Leave empty if the event is deliniated.
+    Description: Text right before the time stamp in the event that will be used to help identify the timestamp.  Leave empty if the event is delineated.
     Default: ""
 
   splunkEventDelimiter:
     Type: String
-    Description: Text that is used to deliniate the fields in each event.  Leave empty if the log file is not deliniated.
+    Description: Text that is used to split the fields in each event.  Leave empty if the log file is not delineated.
     Default: ""
 
-  splunkTimeDeliniatedField:
+  splunkTimeDelineatedField:
     Type: String
-    Description: Number associated with a deliniated event that corresponds with the timestamp.  Leave empty if the log file is not deliniated.
+    Description: Number associated with a delineated event that corresponds with the timestamp.  Leave empty if the log file is not delineated.
     Default: ""
 
   splunkTimeFormat:
@@ -109,8 +109,8 @@ Parameters:
     Default: prefix-ISO8601
     AllowedValues:
       - prefix-ISO8601
-      - deliniated-epoch
-      - deliniated-ISO8601
+      - delineated-epoch
+      - delineated-ISO8601
 
   splunkJSONFormat:
     Type: String
@@ -523,7 +523,7 @@ Resources:
           SPLUNK_INDEX: !Ref splunkIndex
           SPLUNK_TIME_PREFIX: !Ref splunkTimePrefix
           SPLUNK_EVENT_DELIMITER: !Ref splunkEventDelimiter
-          SPLUNK_TIME_DELINIATED_FIELD: !Ref splunkTimeDeliniatedField
+          SPLUNK_TIME_DELINEATED_FIELD: !Ref splunkTimeDelineatedField
           SPLUNK_TIME_FORMAT: !Ref splunkTimeFormat
           SPLUNK_SOURCETYPE: !Ref splunkSourcetype
           SPLUNK_SOURCE: !Ref splunkSource

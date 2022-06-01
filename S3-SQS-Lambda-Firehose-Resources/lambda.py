@@ -10,7 +10,7 @@ recordBatch = []
 SPLUNK_INDEX = os.environ['SPLUNK_INDEX']
 SPLUNK_TIME_PREFIX = os.environ['SPLUNK_TIME_PREFIX']
 SPLUNK_EVENT_DELIMITER = os.environ['SPLUNK_EVENT_DELIMITER']
-SPLUNK_TIME_DELINIATED_FIELD = os.environ['SPLUNK_TIME_DELINIATED_FIELD']
+SPLUNK_TIME_DELINEATED_FIELD = os.environ['SPLUNK_TIME_DELINEATED_FIELD']
 SPLUNK_TIME_FORMAT = os.environ['SPLUNK_TIME_FORMAT']
 SPLUNK_SOURCETYPE = os.environ['SPLUNK_SOURCETYPE']
 SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
@@ -166,13 +166,13 @@ def getTimestamp(event, delimiter):
 
 			iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + "(.{1,5})?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{0,10})?Z)", str(event)).group(regexGroupIndex) #fix eventTime
 			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
-		# For field-deliniated epoch time
-		elif (SPLUNK_TIME_FORMAT == "deliniated-epoch"):
-			epochTime = float(event.split(delimiter)[int(SPLUNK_TIME_DELINIATED_FIELD)])
+		# For field-delimited epoch time
+		elif (SPLUNK_TIME_FORMAT == "delineated-epoch"):
+			epochTime = float(evenIMITED(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])
 			return(epochTime)
 		# For delinitated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
-		elif (SPLUNK_TIME_FORMAT == "deliniated-ISO8601"):
-			iso8601Timestamp = event.split(delimiter)[int(SPLUNK_TIME_DELINIATED_FIELD)]
+		elif (SPLUNK_TIME_FORMAT == "delineated-ISO8601"):
+			iso8601Timestamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
 			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
 	except:
 		# If not standard, set to current time
@@ -206,7 +206,7 @@ def sendEventsToFirehose(event, final):
 # Default Lambda handler
 def handler(event, context):
 
-	# Create deliniated field break
+	# Create delineated field break
 	delimiter = createDelimeter()
 
 	# Loop through each SQS message
