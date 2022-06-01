@@ -39,46 +39,6 @@ Parameters:
 
 Resources:
 
-  # ELB Classic
-  classicELB:
-    Type: AWS::ElasticLoadBalancing::LoadBalancer
-    Properties:
-      AccessLoggingPolicy:
-        EmitInterval: 5
-        Enabled: true
-        S3BucketName: !Ref s3BucketName
-      ConnectionSettings:
-        IdleTimeout: 600
-      HealthCheck:
-        HealthyThreshold: 5
-        Interval: 5
-        Target: HTTP:80/
-        Timeout: 3
-        UnhealthyThreshold: 5
-      Listeners:
-      - LoadBalancerPort: 80
-        InstancePort: 80
-        InstanceProtocol: HTTP
-        Protocol: HTTP
-        PolicyNames:
-        - DefaultSessionTimeout
-      LBCookieStickinessPolicy:
-      - PolicyName: DefaultSessionTimeout
-      Scheme: internet-facing
-      SecurityGroups:
-        - !Ref loadBalancerSecurityGroup
-      Subnets:
-        - !Ref publicSubnetA
-        - !Ref publicSubnetB
-        - !Ref publicSubnetC
-      Tags:
-      - Key: service
-        Value: !Ref service
-      - Key: stage
-        Value: !Ref stage
-      - Key: contact
-        Value: !Ref contact
-
   # ELB v2 (ALB / NLB)
   elbv2:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -102,7 +62,6 @@ Resources:
         Value: !Ref stage
       - Key: contact
         Value: !Ref contact
-
 
   # Security Group for load balancers, not required for ELB log ingest
   loadBalancerSecurityGroup:

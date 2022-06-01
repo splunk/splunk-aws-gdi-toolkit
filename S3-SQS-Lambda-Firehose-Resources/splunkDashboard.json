@@ -4,7 +4,7 @@
 			"type": "splunk.column",
 			"showProgressBar": false,
 			"showLastUpdated": false,
-			"title": "CloudTrail License Usage Over Time (GB)",
+			"title": "$sourcetype$ License Usage Over Time (GB)",
 			"dataSources": {
 				"primary": "ds_6WBt9iY9"
 			},
@@ -14,7 +14,7 @@
 		},
 		"viz_KMF849o7": {
 			"type": "splunk.singlevalue",
-			"title": "CloudTrail License Usage",
+			"title": "$sourcetype$ Event License Usage",
 			"dataSources": {
 				"primary": "ds_HUEXsOZi"
 			},
@@ -27,7 +27,7 @@
 		},
 		"viz_OF3a0hX5": {
 			"type": "splunk.singlevalue",
-			"title": "CloudTrail Event Count",
+			"title": "$sourcetype$ Event Count",
 			"dataSources": {
 				"primary": "ds_LN5KxPiz"
 			},
@@ -41,7 +41,7 @@
 			"type": "splunk.line",
 			"showProgressBar": false,
 			"showLastUpdated": false,
-			"title": "CloudTrail Event Count Over Time",
+			"title": "$sourcetype$  Event Count Over Time",
 			"dataSources": {
 				"primary": "ds_7YVGDkt0"
 			},
@@ -51,14 +51,14 @@
 		},
 		"viz_eU3T7rCG": {
 			"type": "splunk.singlevalue",
-			"title": "AWS Accounts Sending CloudTrail Events",
+			"title": "AWS Accounts Sending Events",
 			"dataSources": {
 				"primary": "ds_noJxIRWy"
 			}
 		},
 		"viz_nO6QvmkM": {
 			"type": "splunk.line",
-			"title": "AWS Accounts Sending CloudTrail Events",
+			"title": "AWS Accounts Sending $sourcetype$ Events",
 			"dataSources": {
 				"primary": "ds_FFly4UzK"
 			},
@@ -68,7 +68,7 @@
 		},
 		"viz_NY0AedMk": {
 			"type": "splunk.line",
-			"title": "Event Latency over Time",
+			"title": "$sourcetype$  Event Latency Over Time",
 			"showProgressBar": false,
 			"showLastUpdated": false,
 			"dataSources": {
@@ -80,7 +80,7 @@
 		},
 		"viz_XqNxe7aK": {
 			"type": "splunk.singlevalue",
-			"title": "Latest Event Latency",
+			"title": "$sourcetype$ Latest Event Latency",
 			"dataSources": {
 				"primary": "ds_tCds3VFx"
 			},
@@ -96,7 +96,7 @@
 		"ds_6WBt9iY9": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=_internal source=*license_usage* st=aws:cloudtrail NOT source=*license_usage_summary.log*\n| timechart sum(b) as ingestedDataGB\n| eval ingestedDataGB = ingestedDataGB/1024/1024/1024",
+				"query": "index=_internal source=*license_usage* idx=$eventIndex$ st=$sourcetype$ NOT source=*license_usage_summary.log*\n| timechart sum(b) as ingestedDataGB\n| eval ingestedDataGB = ingestedDataGB/1024/1024/1024",
 				"queryParameters": {
 					"earliest": "$global_time.earliest$",
 					"latest": "$global_time.latest$"
@@ -115,7 +115,7 @@
 		"ds_7YVGDkt0": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=_internal series=\"aws:cloudtrail\" sourcetype=splunkd source=*metrics.log*\n| timechart sum(ev) as eventCount"
+				"query": "index=_internal series=$sourcetype$ sourcetype=splunkd source=*metrics.log*\n| timechart sum(ev) as eventCount"
 			},
 			"name": "eventCountBase"
 		},
@@ -130,35 +130,35 @@
 		"ds_FFly4UzK": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$cloudtrailIndex$ sourcetype=aws:cloudtrail\n| timechart dc(recipientAccountId) as accountCount"
+				"query": "index=eventIndex sourcetype=$sourcetype$\n| timechart dc(vendor_account) as accountCount"
 			},
 			"name": "accountCountTimechart"
 		},
 		"ds_noJxIRWy": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$cloudtrailIndex$ sourcetype=aws:cloudtrail\n| stats dc(recipientAccountId) as accountCount"
+				"query": "index=$eventIndex$ sourcetype=$sourcetype$\n| stats dc(vendor_account) as accountCount"
 			},
 			"name": "accountCountTotal"
 		},
 		"ds_srz6OcK5": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$cloudtrailIndex$ sourcetype=aws:cloudtrail \n| eval eventLatency = abs(_indextime - _time)\n| timechart avg(eventLatency) as eventLatency"
+				"query": "index=$eventIndex$ sourcetype=$sourcetype$ \n| eval eventLatency = abs(_indextime - _time)\n| timechart avg(eventLatency) as eventLatency"
 			},
 			"name": "eventLatencyBase"
 		},
 		"ds_tCds3VFx": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$cloudtrailIndex$ sourcetype=aws:cloudtrail | head 1\n| eval eventLatency = abs(_indextime - _time)\n| table eventLatency"
+				"query": "index=$eventIndex$ sourcetype=$sourcetype$ | head 1\n| eval eventLatency = abs(_indextime - _time)\n| table eventLatency"
 			},
 			"name": "eventLatencyLatest"
 		},
 		"ds_N5KOizZ9": {
 			"type": "ds.search",
 			"options": {
-				"query": "| tstats count by index",
+				"query": "| tstats count where index=* by index",
 				"queryParameters": {
 					"earliest": "$global_time.earliest$",
 					"latest": "$global_time.latest$"
@@ -166,12 +166,12 @@
 			},
 			"name": "indexList"
 		},
-		"ds_ZE60GhcY_ds_noJxIRWy": {
+		"ds_f9m7vKr7": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=$cloudtrailIndex$ sourcetype=aws:cloudtrail\n| stats dc(recipientAccountId) as accountCount"
+				"query": "| tstats count where index=$eventIndex$ by sourcetype"
 			},
-			"name": "Copy of accountCountTotal"
+			"name": "sourcetypeList"
 		}
 	},
 	"defaults": {
@@ -204,12 +204,29 @@
 					}
 				],
 				"defaultValue": "main",
-				"token": "cloudtrailIndex"
+				"token": "eventIndex"
 			},
-			"title": "CloudTrail Index",
+			"title": "Event Index",
 			"type": "input.dropdown",
 			"dataSources": {
 				"primary": "ds_N5KOizZ9"
+			}
+		},
+		"input_C3SY1WEW": {
+			"options": {
+				"items": [
+					{
+						"label": "All",
+						"value": "*"
+					}
+				],
+				"defaultValue": "*",
+				"token": "sourcetype"
+			},
+			"title": "Event Sourcetype",
+			"type": "input.dropdown",
+			"dataSources": {
+				"primary": "ds_f9m7vKr7"
 			}
 		}
 	},
@@ -223,7 +240,7 @@
 				"position": {
 					"x": 600,
 					"y": 0,
-					"w": 225,
+					"w": 300,
 					"h": 100
 				}
 			},
@@ -231,9 +248,9 @@
 				"item": "viz_XqNxe7aK",
 				"type": "block",
 				"position": {
-					"x": 825,
+					"x": 900,
 					"y": 0,
-					"w": 375,
+					"w": 300,
 					"h": 100
 				}
 			},
@@ -243,7 +260,7 @@
 				"position": {
 					"x": 0,
 					"y": 0,
-					"w": 301,
+					"w": 300,
 					"h": 100
 				}
 			},
@@ -291,18 +308,19 @@
 				"item": "viz_OF3a0hX5",
 				"type": "block",
 				"position": {
-					"x": 301,
+					"x": 300,
 					"y": 0,
-					"w": 299,
+					"w": 300,
 					"h": 100
 				}
 			}
 		],
 		"globalInputs": [
 			"input_global_trp",
-			"input_9rNFa8NM"
+			"input_9rNFa8NM",
+			"input_C3SY1WEW"
 		]
 	},
 	"description": "",
-	"title": "Splunk AWS GDI Toolkit - CloudTrail"
+	"title": "Splunk AWS GDI Toolkit - S3-SQS-Lambda-Firehose"
 }

@@ -1,0 +1,58 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create the intentionally public resources for the toolkit.
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Type: String
+
+Resources:
+  # S3 resources
+  publicS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Sub "${service}-${AWS::Region}-public-bucket"
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${service}-${AWS::Region}-public-bucket-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      - Key: public
+        Value: true
+
+Outputs:
+  publicS3BucketArn:
+    Value: !GetAtt publicS3Bucket.Arn
