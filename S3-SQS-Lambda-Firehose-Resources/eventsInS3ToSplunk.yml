@@ -288,13 +288,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             Service: cloudtrail.amazonaws.com
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             Service: cloudtrail.amazonaws.com
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"]
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
 
   s3BucketPolicyVPCFlowLogs:
     Type: AWS::S3::BucketPolicy
@@ -308,13 +308,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             Service: delivery.logs.amazonaws.com
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             Service: delivery.logs.amazonaws.com
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"]
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
           Condition:
             StringEquals:
               s3:x-amz-acl: bucket-owner-full-control
@@ -331,13 +331,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             Service: logdelivery.elb.amazonaws.com
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             AWS: !FindInMap [RegionMapping, !Ref AWS::Region, elbAccountIDPrincipal]
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"]
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
           Condition:
             StringEquals:
               s3:x-amz-acl: bucket-owner-full-control
@@ -354,13 +354,13 @@ Resources:
             - s3:GetBucketAcl
           Principal: 
             AWS: !Ref roleAccessToS3BucketPut
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
         - Effect: Allow
           Action:
             - s3:PutObject
           Principal: 
             AWS: !Ref roleAccessToS3BucketPut
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"]
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
 
   # S3 Notifications > SQS
   s3BucketNotificationSQSQueue:
