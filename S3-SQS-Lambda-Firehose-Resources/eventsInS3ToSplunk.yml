@@ -6,71 +6,81 @@ Parameters:
 
   service:
     Type: String
-    Description: Service name used in tagging.
+    Description: Service name used in tagging AWS resources.
     Default: splunk-aws-gdi-tooklit
 
   stage:
     Type: String
-    Description: Used to distinguish between stages of an environment
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
     Default: dev
 
   contact:
-    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
     Type: String
     Default: ""
 
   logType:
     Type: String
-    Description: Log type, used in AWS resource names.  Must be follow all he normal rules for S3 bucket names (https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html), but also less than 30 characters long.
+    Description: Log type, used in AWS resource names.  Must follow the normal rules for S3 bucket names (https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html), but also less than 30 characters long.
     AllowedPattern: "(?!(xn--|-s3alias$))^[a-z0-9][a-z0-9-]{1,20}[a-z0-9]$"
 
   existingS3BucketName:
     Type: String
-    Description: Name of the existng S3 bucket you want to ingest data to.  Leave this blank to create a new S3 bucket.  If you specify the name of an existing S3 bucket, you'll need to set permissions appropriatly.
+    Description: Name of the existng S3 bucket you want to ingest data from.  Leave this blank to create a new S3 bucket.  If you specify the name of an existing S3 bucket, you'll need to create the S3 > SQS notification settings.
     Default: ""
 
   s3ObjectExpirationInDays:
-    Description: How many days to keep the files in S3 before they're deleted.
+    Description: How many days to keep the files in S3 before they're deleted.  This only applies to new buckets and not existing buckets.
     Default: 90
     Type: String
 
   roleAccessToS3BucketPut:
     Type: String
-    Description: ARN of the role to allow the putting of objects in the S3 bucket.  Leave blank to auto-detect appropriate settings for CloudTrail, ELB logs, or VPC Flow Logs.
+    Description: ARN of the role to allow the putting of objects in the S3 bucket.  Leave blank to auto-detect appropriate settings for CloudTrail, ELB Access, or VPC Flow logs.
     Default: ""
 
   sqsQueueVisibilityTimeoutInSecond:
     Type: String
     Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
     Default: 630
+    MinValue: 0
+    Maxvalue: 43200
 
   splunkHECEndpoint:
     Type: String
-    Description: Destination (URL) that Firehose will send data to.
+    Description: Destination URL that Firehose will send data to.
 
   splunkHECToken:
     Type: String
     Description: HEC token Firehose will use to authenticate data being sent to Splunk.
 
   lambdaProcessorMemorySize:
-    Type: String
-    Description: Size of memory to allocate to Lambda processor.  The higher this number the more memory is allocated and the more expensive the function is to run, but the fater it runs.
+    Type: Number
+    Description: Size of memory to allocate to Lambda function.
     Default: 1024
+    MinValue: 128
+    Maxvalue: 10240
 
   lambdaProcessorTimeout:
-    Type: String
+    Type: Number
     Description: How long the Lambda function can run until it times out.
     Default: 300
+    MinValue: 1
+    Maxvalue: 900
 
   lambdaProcessorBatchSize:
-    Type: String
+    Type: Number
     Description: How many SQS messages (aka files from S3) to process in a single Lambda execution.
     Default: 100
+    MinValue: 1
+    Maxvalue: 10000
 
   lambdaProcessorBatchingWindowInSeconds:
-    Type: String
+    Type: Number
     Description: How long to let SQS messages (aka files from S3) queue up before processing them.
-    Default: 60
+    Default: 15
+    MinValue: 0
+    Maxvalue: 300
 
   splunkIndex:
     Type: String
@@ -99,7 +109,7 @@ Parameters:
     Default: ""
 
   splunkTimeDelineatedField:
-    Type: String
+    Type: Number
     Description: Number associated with a delineated event that corresponds with the timestamp.  Leave empty if the log file is not delineated.
     Default: ""
 
@@ -122,7 +132,7 @@ Parameters:
 
   splunkIgnoreFirstLine:
     Type: String
-    Description: Whether the first line of the CSV file should be discarded.  Leave default if the events are not in CSV format.
+    Description: Whether the first line of the log file should be discarded.
     Default: false
     AllowedValues:
       - true
