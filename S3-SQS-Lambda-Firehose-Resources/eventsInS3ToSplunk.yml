@@ -40,11 +40,11 @@ Parameters:
     Default: ""
 
   sqsQueueVisibilityTimeoutInSecond:
-    Type: String
+    Type: Number
     Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
     Default: 630
     MinValue: 0
-    Maxvalue: 43200
+    MaxValue: 43200
 
   splunkHECEndpoint:
     Type: String
@@ -59,28 +59,28 @@ Parameters:
     Description: Size of memory to allocate to Lambda function.
     Default: 1024
     MinValue: 128
-    Maxvalue: 10240
+    MaxValue: 10240
 
   lambdaProcessorTimeout:
     Type: Number
     Description: How long the Lambda function can run until it times out.
     Default: 300
     MinValue: 1
-    Maxvalue: 900
+    MaxValue: 900
 
   lambdaProcessorBatchSize:
     Type: Number
     Description: How many SQS messages (aka files from S3) to process in a single Lambda execution.
     Default: 100
     MinValue: 1
-    Maxvalue: 10000
+    MaxValue: 10000
 
   lambdaProcessorBatchingWindowInSeconds:
     Type: Number
     Description: How long to let SQS messages (aka files from S3) queue up before processing them.
     Default: 15
     MinValue: 0
-    Maxvalue: 300
+    MaxValue: 300
 
   splunkIndex:
     Type: String
@@ -109,7 +109,7 @@ Parameters:
     Default: ""
 
   splunkTimeDelineatedField:
-    Type: Number
+    Type: String
     Description: Number associated with a delineated event that corresponds with the timestamp.  Leave empty if the log file is not delineated.
     Default: ""
 
