@@ -17,6 +17,7 @@ Parameters:
   contact:
     Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
     Type: String
+    Default: ""
 
   logType:
     Type: String
@@ -25,6 +26,7 @@ Parameters:
   existingS3BucketName:
     Type: String
     Description: Name of the existng S3 bucket you want to ingest data to.  Leave this blank to create a new S3 bucket.  If you specify the name of an existing S3 bucket, you'll need to set permissions appropriatly.
+    Default: ""
 
   s3ObjectExpirationInDays:
     Description: How many days to keep the files in S3 before they're deleted.
@@ -34,6 +36,7 @@ Parameters:
   roleAccessToS3BucketPut:
     Type: String
     Description: ARN of the role to allow the putting of objects in the S3 bucket.  Leave blank to auto-detect appropriate settings for CloudTrail, ELB logs, or VPC Flow Logs.
+    Default: ""
 
   sqsQueueVisibilityTimeoutInSecond:
     Type: String
@@ -87,14 +90,17 @@ Parameters:
   splunkTimePrefix:
     Type: String
     Description: Text right before the time stamp in the event that will be used to help identify the timestamp.  Leave empty if the event is deliniated.
+    Default: ""
 
   splunkEventDelimiter:
     Type: String
     Description: Text that is used to deliniate the fields in each event.  Leave empty if the log file is not deliniated.
+    Default: ""
 
   splunkTimeDeliniatedField:
     Type: String
     Description: Number associated with a deliniated event that corresponds with the timestamp.  Leave empty if the log file is not deliniated.
+    Default: ""
 
   splunkTimeFormat:
     Type: String
@@ -116,7 +122,7 @@ Parameters:
   splunkIgnoreFirstLine:
     Type: String
     Description: Whether the first line of the CSV file should be discarded.  Leave default if the events are not in CSV format.
-    Default: true
+    Default: false
     AllowedValues:
       - true
       - false
@@ -124,6 +130,7 @@ Parameters:
   cloudWatchAlertEmail:
     Type: String
     Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
+    Default: ""
 
 
 Conditions:
