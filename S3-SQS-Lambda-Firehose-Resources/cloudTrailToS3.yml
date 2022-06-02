@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: This is a CloudFormation template to create CloudTrail logging infrastructure to S3.  This should be done at the top-level Organization account to capture all of the Organiation's CloudTrail logs - https://aws.amazon.com/cloudtrail/
+Description: This is a CloudFormation template to create CloudTrail logging infrastructure to S3.  This should be done at the top-level Organization account to capture all of the Organization's CloudTrail logs - https://aws.amazon.com/cloudtrail/
 
 
 Parameters:
@@ -11,15 +11,15 @@ Parameters:
 
   stage:
     Type: String
-    Description: Used to distinguish between stages of an environment
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
     Default: dev
 
   contact:
-    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
     Type: String
 
   cloudTrailS3BucketName:
-    Description: Destination bucket namethat will receive CloudTrail events.
+    Description: Destination bucket name that will receive CloudTrail events.
     Type: String
 
   cloudTrailLogFileValidation:

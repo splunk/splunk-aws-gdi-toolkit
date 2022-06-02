@@ -23,8 +23,8 @@ validFileTypes = ["gz", "gzip", "json", "csv", "log"]
 unsupportedFileTypes = ["CloudTrail-Digest"]
 delimiterMapping = {"space": " ", "tab": "	", "comma": ",", "semicolon": ";"}
 
-# Create delimeter for delimiting events
-def createDelimeter():
+# Create delimiter for delimiting events
+def createDdelimiter():
 
 	if (SPLUNK_EVENT_DELIMITER in delimiterMapping.keys()):
 		return delimiterMapping[SPLUNK_EVENT_DELIMITER]
@@ -170,7 +170,7 @@ def getTimestamp(event, delimiter):
 		elif (SPLUNK_TIME_FORMAT == "delineated-epoch"):
 			epochTime = float(evenIMITED(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])
 			return(epochTime)
-		# For delinitated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
+		# For delineated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
 		elif (SPLUNK_TIME_FORMAT == "delineated-ISO8601"):
 			iso8601Timestamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
 			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
@@ -207,7 +207,7 @@ def sendEventsToFirehose(event, final):
 def handler(event, context):
 
 	# Create delineated field break
-	delimiter = createDelimeter()
+	delimiter = createDdelimiter()
 
 	# Loop through each SQS message
 	for message in event['Records']:
@@ -264,13 +264,13 @@ def handler(event, context):
 		# Loop through split events
 		for splitEvent in splitEvents:
 
-			# Get timetamp
+			# Get timestamp
 			timestamp = getTimestamp(splitEvent, delimiter)
 
 			# Construct event to send to Splunk
 			splunkEvent = '{ "time": ' +  str(timestamp) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "' + SPLUNK_SOURCETYPE + '", "index": "' + SPLUNK_INDEX + '", "event":  ' + json.dumps(splitEvent) + ' }'
 
-			# Buffer and send the evnets to Firehose
+			# Buffer and send the events to Firehose
 			result = sendEventsToFirehose(str(splunkEvent), False)
 
 			# Error logging

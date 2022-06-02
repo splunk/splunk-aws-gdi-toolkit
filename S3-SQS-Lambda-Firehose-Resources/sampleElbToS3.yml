@@ -10,11 +10,11 @@ Parameters:
 
   stage:
     Type: String
-    Description: Used to distinguish between stages of an environment
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
     Default: dev
 
   contact:
-    Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
     Type: String
 
   s3BucketName:

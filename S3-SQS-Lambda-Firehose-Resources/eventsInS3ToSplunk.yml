@@ -41,7 +41,7 @@ Parameters:
 
   sqsQueueVisibilityTimeoutInSecond:
     Type: Number
-    Description: How long to let SQS messages be taken by the Lambda function before they become avaliable to be processed again.  Must be more than lambdaProcessorTimeout.
+    Description: How long to let SQS messages be taken by the Lambda function before they become available to be processed again.  Must be more than lambdaProcessorTimeout.
     Default: 630
     MinValue: 0
     MaxValue: 43200
