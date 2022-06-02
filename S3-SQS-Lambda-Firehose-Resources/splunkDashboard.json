@@ -130,7 +130,7 @@
 		"ds_FFly4UzK": {
 			"type": "ds.search",
 			"options": {
-				"query": "index=eventIndex sourcetype=$sourcetype$\n| timechart dc(vendor_account) as accountCount"
+				"query": "index=$eventIndex$ sourcetype=$sourcetype$\n| timechart dc(vendor_account) as accountCount"
 			},
 			"name": "accountCountTimechart"
 		},
