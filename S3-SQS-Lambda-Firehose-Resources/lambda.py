@@ -222,8 +222,8 @@ def handler(event, context):
 
 		# Validate file types
 		validateFileTypeResult = validateFileType(objectInfo["key"])
-		if ("Invalid file type." in validateFileTypeResult):
-			print("Invalid file type: s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
+		if ("Unsupported file type." in validateFileTypeResult):
+			print("Unsupported file type: s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
 			continue
 		
 		# Retrieve the S3 object and uncompress it
