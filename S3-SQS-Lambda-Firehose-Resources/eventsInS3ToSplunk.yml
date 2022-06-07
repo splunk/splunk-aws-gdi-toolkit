@@ -633,7 +633,7 @@ Resources:
         - Endpoint: !Ref cloudWatchAlertEmail
           Protocol: email
 
-  cloudTrailOrgLambdaInvocationAlarm:
+  lambdaInvocationAlarm:
     Condition: enableAlerting
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -654,7 +654,7 @@ Resources:
       Threshold: 1
       Unit: Count
 
-  cloudTrailOrgLambdaDurationAlarm:
+  lambdaDurationAlarm:
     Condition: enableAlerting
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -675,7 +675,7 @@ Resources:
       Threshold: 300000
       Unit: Milliseconds
 
-  cloudTrailOrgFirehoseDeliveryAlarm:
+  firehoseDeliveryAlarm:
     Condition: enableAlerting
     Type: AWS::CloudWatch::Alarm
     Properties:
