@@ -1,4 +1,4 @@
-import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time
+import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv
 
 # AWS-related setup
 s3Client = boto3.client('s3')
@@ -17,10 +17,12 @@ SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
 SPLUNK_HOST = os.environ['SPLUNK_HOST']
 SPLUNK_JSON_FORMAT = os.environ['SPLUNK_JSON_FORMAT']
 SPLUNK_IGNORE_FIRST_LINE = os.environ['SPLUNK_IGNORE_FIRST_LINE']
+SPLUNK_CSV_TO_JSON = os.environ['SPLUNK_CSV_TO_JSON']
+SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS = os.environ['SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS']
 
 # Lambda things
 validFileTypes = ["gz", "gzip", "json", "csv", "log"]
-unsupportedFileTypes = ["CloudTrail-Digest"]
+unsupportedFileTypes = ["CloudTrail-Digest", "billing-report-Manifest"]
 delimiterMapping = {"space": " ", "tab": "	", "comma": ",", "semicolon": ";"}
 
 # Create delimiter for delimiting events
@@ -152,6 +154,33 @@ def eventBreak(events, extension):
 		return("File type invalid")
 
 
+# Handle CSV to JSON conversion, and optionally remove null fields
+def csvToJSON(splitEvents):
+
+	newEvents = []
+
+	# Change CSVs with headers to JSON format
+	csvSplit = csv.DictReader(splitEvents)
+	for csvRow in csvSplit: 
+		newEvents.append(csvRow)
+
+	# Remove JSON fields with null or no value
+	if (SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS == "true"):
+
+		newEventsWithoutEmptyValues = []
+		for newEvent in newEvents:
+			newEventWithoutEmptyValues = {}
+			for newEventKey in newEvent.keys():
+				if (len(newEvent[newEventKey]) > 0):
+					newEventWithoutEmptyValues[newEventKey] = newEvent[newEventKey]
+			newEventsWithoutEmptyValues.append(newEventWithoutEmptyValues)
+
+		newEvents.clear()
+		return newEventsWithoutEmptyValues
+
+	return newEvents
+
+
 # Set timestamp on event
 def getTimestamp(event, delimiter):
 
@@ -180,6 +209,7 @@ def getTimestamp(event, delimiter):
 		return(time.time())
 
 	return(time.time())
+
 
 # Buffer and send events to Firehose
 def sendEventsToFirehose(event, final):
@@ -260,6 +290,10 @@ def handler(event, context):
 		if (isinstance(splitEvents, str)):
 			print("File type unsupported s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
 			continue
+
+		# Transform CSV to JSON
+		if (SPLUNK_CSV_TO_JSON == "true"):
+			splitEvents = csvToJSON(splitEvents)
 
 		# Loop through split events
 		for splitEvent in splitEvents:
