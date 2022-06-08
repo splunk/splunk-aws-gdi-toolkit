@@ -288,7 +288,7 @@ Resources:
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
               Status: Enabled
-            - Id: !Sub "$${AWS::AccountId}-${AWS::Region}-${logType}-expiration"
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-expiration"
               ExpirationInDays: !Ref s3ObjectExpirationInDays
               Status: Enabled
       NotificationConfiguration:
