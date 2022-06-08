@@ -186,6 +186,12 @@ Conditions:
   elbLogNewBucket: !And
     - !Condition elbLog
     - !Condition createNewS3Bucket
+  billingLog: !Equals
+    - !Ref logType
+    - "billingcur"
+  billingNewBucket: !And
+    - !Condition billingLog
+    - !Condition createNewS3Bucket
   customLogType: !And
     - !Not
        - !Condition cloudTrail
@@ -193,6 +199,8 @@ Conditions:
        - !Condition vpcFlowLog
     - !Not
        - !Condition elbLog
+    - !Not
+       - !Condition billingLog
   customLogTypeNewBucket: !And
     - !Condition customLogType
     - !Condition createNewS3Bucket
@@ -367,6 +375,35 @@ Resources:
           Condition:
             StringEquals:
               s3:x-amz-acl: bucket-owner-full-control
+
+  s3BucketPolicyBillingLogs:
+    Type: AWS::S3::BucketPolicy
+    Condition: billingNewBucket
+    Properties:
+      Bucket: !Ref s3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+            - s3:GetBucketPolicy
+          Principal: 
+            Service: billingreports.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
+          Condition:
+            StringEquals:
+              aws:SourceARN: !Sub "arn:aws:cur:us-east-1:${AWS::AccountId}:definition/*"
+              aws:SouceAccount: !Ref AWS::AccountId
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            Service: billingreports.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
+          Condition:
+            StringEquals:
+              aws:SourceARN: !Sub "arn:aws:cur:us-east-1:${AWS::AccountId}:definition/*"
+              aws:SouceAccount: !Ref AWS::AccountId
 
   s3BucketPolicyCustomRole:
     Type: AWS::S3::BucketPolicy
