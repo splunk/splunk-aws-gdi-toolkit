@@ -138,6 +138,22 @@ Parameters:
       - true
       - false
 
+  splunkCSVToJSON:
+    Type: String
+    Description: Whether the to use the first line in the CSV file to convert the file from CSV to JSON.  If the file is not CSV-formatted, this can be ignored and left at the default setting.
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
+  splunkRemoveEmptyCSVToJsonFields:
+    Type: String
+    Description: Whether the to remove empty or null JSON fields after converting the event from CSV to JSON.  If the file is not CSV-formatted, this can be ignored and left at the default setting.
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
   cloudWatchAlertEmail:
     Type: String
     Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
@@ -540,6 +556,8 @@ Resources:
           SPLUNK_HOST: !Ref splunkHost
           SPLUNK_JSON_FORMAT: !Ref splunkJSONFormat
           SPLUNK_IGNORE_FIRST_LINE: !Ref splunkIgnoreFirstLine
+          SPLUNK_CSV_TO_JSON: !Ref splunkCSVToJSON
+          SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS: !Ref splunkRemoveEmptyCSVToJsonFields
       FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
       Handler: lambda.handler
       MemorySize: !Ref lambdaProcessorMemorySize
