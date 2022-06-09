@@ -25,12 +25,10 @@ Parameters:
   billingCURS3BucketRegion:
     Description: Region of the destination bucket name that will receive the Billing CUR files.
     Type: String
-    Default: us-west-2
 
   billingCURS3BucketName:
     Description: Destination bucket name that will receive CloudTrail events.
     Type: String
-    Default: 841154226728-us-west-2-billingcur
 
 
 Resources:
