@@ -392,8 +392,8 @@ Resources:
           Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
           Condition:
             StringEquals:
-              aws:SourceARN: !Sub "arn:aws:cur:us-east-1:${AWS::AccountId}:definition/*"
-              aws:SouceAccount: !Ref AWS::AccountId
+              aws:SourceArn: !Sub "arn:aws:cur:us-east-1:${AWS::AccountId}:definition/*"
+              aws:SourceAccount: !Ref AWS::AccountId
         - Effect: Allow
           Action:
             - s3:PutObject
@@ -402,8 +402,8 @@ Resources:
           Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
           Condition:
             StringEquals:
-              aws:SourceARN: !Sub "arn:aws:cur:us-east-1:${AWS::AccountId}:definition/*"
-              aws:SouceAccount: !Ref AWS::AccountId
+              aws:SourceArn: !Sub "arn:aws:cur:us-east-1:${AWS::AccountId}:definition/*"
+              aws:SourceAccount: !Ref AWS::AccountId
 
   s3BucketPolicyCustomRole:
     Type: AWS::S3::BucketPolicy
