@@ -138,6 +138,22 @@ Parameters:
       - true
       - false
 
+  splunkCSVToJSON:
+    Type: String
+    Description: Whether the to use the first line in the CSV file to convert the file from CSV to JSON.  If the file is not CSV-formatted, this can be ignored and left at the default setting.
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
+  splunkRemoveEmptyCSVToJsonFields:
+    Type: String
+    Description: Whether the to remove empty or null JSON fields after converting the event from CSV to JSON.  If the file is not CSV-formatted, this can be ignored and left at the default setting.
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
   cloudWatchAlertEmail:
     Type: String
     Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
@@ -170,6 +186,12 @@ Conditions:
   elbLogNewBucket: !And
     - !Condition elbLog
     - !Condition createNewS3Bucket
+  billingLog: !Equals
+    - !Ref logType
+    - "billingcur"
+  billingNewBucket: !And
+    - !Condition billingLog
+    - !Condition createNewS3Bucket
   customLogType: !And
     - !Not
        - !Condition cloudTrail
@@ -177,6 +199,8 @@ Conditions:
        - !Condition vpcFlowLog
     - !Not
        - !Condition elbLog
+    - !Not
+       - !Condition billingLog
   customLogTypeNewBucket: !And
     - !Condition customLogType
     - !Condition createNewS3Bucket
@@ -264,7 +288,7 @@ Resources:
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
               Status: Enabled
-            - Id: !Sub "$${AWS::AccountId}-${AWS::Region}-${logType}-expiration"
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-expiration"
               ExpirationInDays: !Ref s3ObjectExpirationInDays
               Status: Enabled
       NotificationConfiguration:
@@ -351,6 +375,35 @@ Resources:
           Condition:
             StringEquals:
               s3:x-amz-acl: bucket-owner-full-control
+
+  s3BucketPolicyBillingLogs:
+    Type: AWS::S3::BucketPolicy
+    Condition: billingNewBucket
+    Properties:
+      Bucket: !Ref s3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+            - s3:GetBucketPolicy
+          Principal: 
+            Service: billingreports.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
+          Condition:
+            StringEquals:
+              aws:SourceArn: !Sub "arn:aws:cur:us-east-1:${AWS::AccountId}:definition/*"
+              aws:SourceAccount: !Ref AWS::AccountId
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            Service: billingreports.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
+          Condition:
+            StringEquals:
+              aws:SourceArn: !Sub "arn:aws:cur:us-east-1:${AWS::AccountId}:definition/*"
+              aws:SourceAccount: !Ref AWS::AccountId
 
   s3BucketPolicyCustomRole:
     Type: AWS::S3::BucketPolicy
@@ -540,6 +593,8 @@ Resources:
           SPLUNK_HOST: !Ref splunkHost
           SPLUNK_JSON_FORMAT: !Ref splunkJSONFormat
           SPLUNK_IGNORE_FIRST_LINE: !Ref splunkIgnoreFirstLine
+          SPLUNK_CSV_TO_JSON: !Ref splunkCSVToJSON
+          SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS: !Ref splunkRemoveEmptyCSVToJsonFields
       FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
       Handler: lambda.handler
       MemorySize: !Ref lambdaProcessorMemorySize

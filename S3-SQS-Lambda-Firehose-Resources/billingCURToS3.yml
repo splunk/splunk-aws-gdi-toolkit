@@ -1,0 +1,54 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create a AWS Cost and Usage Billing Report logging infrastructure to S3.  This should be deployed at the Organization billing account if AWS Organizations is used, otherwise this should be deployed to the AWS account Billing CUR should be retrieved from.
+
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
+    Type: String
+
+  billingCURS3BucketName:
+    Description: Destination bucket name that will receive the Billing CUR files.
+    Type: String
+
+  billingCURS3BucketRegion:
+    Description: Region of the destination bucket name that will receive the Billing CUR files.
+    Type: String
+
+  billingCURS3BucketName:
+    Description: Destination bucket name that will receive CloudTrail events.
+    Type: String
+
+
+Resources:
+
+  billingCUR:
+    Type: AWS::CUR::ReportDefinition
+    Properties:
+      AdditionalSchemaElements: 
+        - RESOURCES
+      Compression: GZIP
+      Format: textORcsv
+      RefreshClosedReports: true
+      ReportName: !Sub "${AWS::AccountId}-${AWS::Region}-billing-report"
+      ReportVersioning: CREATE_NEW_REPORT
+      S3Bucket: !Ref billingCURS3BucketName
+      S3Prefix: !Ref service
+      S3Region: !Ref billingCURS3BucketRegion
+      TimeUnit: HOURLY
+
+
+Outputs:
+  billingCURName: 
+    Value: !Ref billingCUR
