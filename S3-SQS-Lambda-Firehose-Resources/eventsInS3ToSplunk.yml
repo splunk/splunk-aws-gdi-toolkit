@@ -293,7 +293,7 @@ Resources:
               Status: Enabled
       NotificationConfiguration:
         QueueConfigurations:
-          - Event: "s3:ObjectCreated:Put"
+          - Event: "s3:ObjectCreated:*"
             Queue: !GetAtt s3BucketNotificationSQSQueue.Arn
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
