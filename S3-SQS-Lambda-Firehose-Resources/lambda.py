@@ -154,6 +154,24 @@ def eventBreak(events, extension):
 		return("File type invalid")
 
 
+# Clean up first line 
+def cleanFirstLine(splitEvents):
+
+	# If the sourcetype is aws:billing:cur, remove everything before the "/" in the CSV header
+	if (SPLUNK_SOURCETYPE == "aws:billing:cur"):
+		
+		header = splitEvents[0]
+		
+		newHeader = ""
+		
+		for splitHeader in header.split(","):
+			newHeader += str(splitHeader.split("/")[1]) + ","
+		
+		splitEvents[0] = newHeader[:-1]
+
+	return(splitEvents)
+
+
 # Handle CSV to JSON conversion, and optionally remove null fields
 def csvToJSON(splitEvents):
 
@@ -285,6 +303,10 @@ def handler(event, context):
 
 		# Split events
 		splitEvents = eventBreak(events, extension)
+
+		# Clean up first line of events
+		if (SPLUNK_SOURCETYPE == "aws:billing:cur"):
+			splitEvents = cleanFirstLine(splitEvents)
 
 		# If a string was returned instead of a list, print the error and stop this loop
 		if (isinstance(splitEvents, str)):
