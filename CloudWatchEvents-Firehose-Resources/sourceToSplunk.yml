@@ -60,7 +60,7 @@ Resources:
           LogStreamName: "SplunkDelivery"
         HECAcknowledgmentTimeoutInSeconds: 300
         HECEndpoint: !Ref splunkHECEndpoint
-        HECEndpointType: "Event"
+        HECEndpointType: "Raw"
         HECToken: !Ref splunkHECToken
         RetryOptions:
           DurationInSeconds: 3600
