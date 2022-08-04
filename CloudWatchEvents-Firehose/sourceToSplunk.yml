@@ -1,0 +1,250 @@
+---
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: This is a CloudFormation template to configure events coming from a source to be sent to Splunk via CloudWach Events and Kinesis Data Firehose.
+
+Parameters:
+
+  service:
+    Type: String
+    Description: Service name used in tagging AWS resources.
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
+    Type: String
+    Default: ""
+
+  logType:
+    Type: String
+    Description: Log type, used in AWS resource names and to determine log soruce.
+    AllowedValues:
+      - guardduty
+      - securityhub
+
+  splunkHECEndpoint:
+    Type: String
+    Description: Destination URL that Firehose will send data to.
+
+  splunkHECToken:
+    Type: String
+    Description: HEC token Firehose will use to authenticate data being sent to Splunk.
+
+  cloudWatchAlertEmail:
+    Type: String
+    Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
+    Default: ""
+
+Conditions:
+  enableAlerting: !Not 
+    - !Equals 
+      - !Ref cloudWatchAlertEmail
+      - ""
+
+Resources:
+  # Firehose > Splunk resources
+  firehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+      DeliveryStreamType: DirectPut
+      SplunkDestinationConfiguration:
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref firehoseLogGroup
+          LogStreamName: "SplunkDelivery"
+        HECAcknowledgmentTimeoutInSeconds: 300
+        HECEndpoint: !Ref splunkHECEndpoint
+        HECEndpointType: "Event"
+        HECToken: !Ref splunkHECToken
+        RetryOptions:
+          DurationInSeconds: 3600
+        S3BackupMode: "FailedEventsOnly"
+        S3Configuration:
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash"
+          BufferingHints:
+            IntervalInSeconds: 300
+            SizeInMBs: 5
+          CompressionFormat: "UNCOMPRESSED"
+          Prefix: !Sub "$${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+          RoleARN: !GetAtt firehoseIAMRole.Arn
+
+  firehoseIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:PutLogEvents
+          Resource: !GetAtt firehoseLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash/*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-policy"
+
+  firehoseIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "firehose.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref firehoseIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  firehoseBacksplashBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  firehoseLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+      RetentionInDays: 30
+
+  firehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref firehoseLogGroup
+      LogStreamName: "SplunkDelivery"
+
+  # Monitoring resoruces
+  monitoringSNSTopic:
+    Condition: enableAlerting
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-alerting-topic"
+      TopicName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-alerting-topic"
+      Subscription:
+        - Endpoint: !Ref cloudWatchAlertEmail
+          Protocol: email
+
+  firehoseDeliveryAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-${AWS::Region}-${logType}-firehose cannot deliver to Splunk."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-delivery-alarm"
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DeliveryStreamName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+      EvaluationPeriods: 1
+      MetricName: DeliveryToSplunk.Success
+      Namespace: AWS/Firehose
+      Period: 60
+      Statistic: Maximum
+      Threshold: 1
+      Unit: Count
+
+  # CloudWatch Event Rule
+  cloudWatchEventsPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - firehose:PutRecordBatch
+          - firehose:PutRecord
+          Resource: !GetAtt firehose.Arn
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-cwe-iam-policy"
+
+  cloudWatchEventsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref cloudWatchEventsPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-cwe-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  cloudWatchEventsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source: 
+          - !Sub "aws.${logType}"
+      Targets:
+        - Arn: !GetAtt firehose.Arn
+          RoleArn: !GetAtt cloudWatchEventsRole.Arn
+          Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-cwe"
+
+Outputs:
+  firehoseArn:
+    Value: !GetAtt firehose.Arn
+  firehoseIAMRoleArn:
+    Value: !GetAtt firehoseIAMRole.Arn
+  firehoseBacksplashBucketArn:
+    Value: !GetAtt firehoseBacksplashBucket.Arn
+  firehoseLogGroupArn:
+    Value: !GetAtt firehoseLogGroup.Arn
+  monitoringSNSTopicArn:
+    Condition: enableAlerting
+    Value: !Ref monitoringSNSTopic
+  cloudWatchEventsRole:
+    Value: !GetAtt cloudWatchEventsRole.Arn
+  cloudWatchEventsRule:
+    Value: !GetAtt cloudWatchEventsRule.Arn
