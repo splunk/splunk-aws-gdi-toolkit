@@ -22,7 +22,7 @@ Parameters:
 
   logType:
     Type: String
-    Description: Log type, used in AWS resource names and to determine log soruce.
+    Description: Log type, used in AWS resource names and to determine log source.
     AllowedValues:
       - guardduty
       - securityhub
