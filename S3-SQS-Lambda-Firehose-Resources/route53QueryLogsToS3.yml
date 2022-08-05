@@ -1,0 +1,51 @@
+---
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: This is a CloudFormation template to configure Route53 DNS Logs for a VPC to be sent to Firehose.
+
+Parameters:
+
+  service:
+    Type: String
+    Description: Service name used in tagging AWS resources.
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
+    Type: String
+    Default: ""
+
+  sourceVPCId:
+    Description: The VPC ID of the query logging will be enabled for.
+    Type: AWS::EC2::VPC::Id
+
+  destinationARN:
+    Description: The ARN of the resource that you want Resolver to send query logs; an Amazon S3 bucket, a CloudWatch Logs log group, or a Kinesis Data Firehose delivery stream.  Most likely the S3 ARN created in deploying the eventsInS3ToSplunk CloudFormation Template.
+    Type: String
+
+
+Resources:
+
+  loggingConfig:
+    Type: AWS::Route53Resolver::ResolverQueryLoggingConfig
+    Properties: 
+      DestinationArn: !Ref destinationARN
+      Name: !Sub "${AWS::AccountId}-${AWS::Region}-queryLoggingConfig-${sourceVPCId}"
+
+  loggingAssociation:
+    Type: AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation
+    Properties: 
+      ResolverQueryLogConfigId: !Ref loggingConfig
+      ResourceId: !Ref sourceVPCId
+
+
+Outputs:
+  loggingConfigId:
+    Value: !Ref loggingConfig
+  loggingAssociationId:
+    Value: !Ref loggingAssociation
