@@ -186,6 +186,12 @@ Conditions:
   elbLogNewBucket: !And
     - !Condition elbLog
     - !Condition createNewS3Bucket
+  route53Log: !Equals
+    - !Ref logType
+    - "route53"
+  route53LogNewBucket: !And
+    - !Condition route53Log
+    - !Condition createNewS3Bucket
   billingLog: !Equals
     - !Ref logType
     - "billingcur"
@@ -199,6 +205,8 @@ Conditions:
        - !Condition vpcFlowLog
     - !Not
        - !Condition elbLog
+    - !Not
+       - !Condition route53Log
     - !Not
        - !Condition billingLog
   customLogTypeNewBucket: !And
@@ -375,6 +383,35 @@ Resources:
           Condition:
             StringEquals:
               s3:x-amz-acl: bucket-owner-full-control
+
+  s3BucketPolicyRoute53Logs:
+    Type: AWS::S3::BucketPolicy
+    Condition: route53LogNewBucket
+    Properties:
+      Bucket: !Ref s3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+          Principal: 
+            Service: delivery.logs.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            Service: delivery.logs.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
+          Condition:
+            StringEquals:
+              s3:x-amz-acl: bucket-owner-full-control
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+          Principal: 
+            AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
 
   s3BucketPolicyBillingLogs:
     Type: AWS::S3::BucketPolicy
