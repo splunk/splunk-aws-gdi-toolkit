@@ -5,7 +5,7 @@ SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
 SPLUNK_HOST = os.environ['SPLUNK_HOST']
 SPLUNK_INDEX = os.environ['SPLUNK_INDEX']
 
-
+# Parse message and return event-formatted record
 def parseEventAsEvent(message):
 
 	# Parse as JSON event
@@ -31,7 +31,7 @@ def parseEventAsEvent(message):
 	# Return Splunk event
 	return '{ "time": ' +  str(jsonMessage['timestamp']) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "aws:cloudwatch", "index": "' + SPLUNK_INDEX + '", "event": ' + json.dumps(splunkEvent) + ' }'
 
-
+# Parse message and return metric-formatted record
 def parseEventAsMetric(message):
 
 	# Parse as JSON event
@@ -53,7 +53,7 @@ def parseEventAsMetric(message):
 		splunkEvent[dimensionKey] = jsonMessage['dimensions'][str(dimensionKey)]
 
 	# Return Splunk event
-	return '{ "time": ' +  str(jsonMessage['timestamp']) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "aws:cloudwatch:metric", "index": "' + SPLUNK_INDEX + '", "event": "metric",  "fields": ' + json.dumps(splunkEvent) + ' }'
+	return '{ "time": ' +  str(jsonMessage['timestamp']) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "aws:cloudwatch:metric", "index": "' + SPLUNK_INDEX + '", "event": ' + json.dumps(splunkEvent) + ' }'
 
 # Default Lambda handler
 def handler(event, context):
@@ -77,8 +77,6 @@ def handler(event, context):
 			# Parse event as metric-style message
 			elif (SPLUNK_EVENT_TYPE == "metric"):
 				formattedEvents += parseEventAsMetric(message) + "\n"
-
-		print(formattedEvents)
 
 		returnEvent['recordId'] = dict(record)['recordId']
 		returnEvent['result'] = "Ok"
