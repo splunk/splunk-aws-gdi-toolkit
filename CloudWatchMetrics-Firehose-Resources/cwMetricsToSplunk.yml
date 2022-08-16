@@ -298,7 +298,7 @@ Resources:
       - Key: contact
         Value: !Ref contact
 
-  cwMetricsStream1:
+  cwMetricsStream:
     Type: AWS::CloudWatch::MetricStream
     Properties: 
       FirehoseArn: !GetAtt firehose.Arn
