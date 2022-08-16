@@ -1,0 +1,413 @@
+---
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: This is a CloudFormation template to configure events coming from CloudWatch Metrics to be sent to Splunk via Kinesis Data Firehose.
+
+Parameters:
+
+  service:
+    Type: String
+    Description: Service name used in tagging AWS resources.
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
+    Type: String
+    Default: ""
+
+  splunkHECEndpoint:
+    Type: String
+    Description: Destination URL that Firehose will send data to.
+
+  splunkHECToken:
+    Type: String
+    Description: HEC token Firehose will use to authenticate data being sent to Splunk.
+
+  cloudWatchAlertEmail:
+    Type: String
+    Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
+    Default: ""
+
+  splunkIndex:
+    Type: String
+    Description: Name of the index in Splunk events will be sent to.
+
+  splunkEventType:
+    Type: String
+    Description: Type of event to be sent to Splunk.
+    Default: event
+    AllowedValues:
+      - metric
+      - event
+
+  splunkSource:
+    Type: String
+    Description: Name of the source for the events that will be sent to Splunk.
+
+  splunkHost:
+    Type: String
+    Description: Name of the host for the events that will be sent to Splunk.
+
+
+Conditions:
+  enableAlerting: !Not 
+    - !Equals 
+      - !Ref cloudWatchAlertEmail
+      - ""
+
+Resources:
+  # Firehose > Splunk resources
+  firehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
+      DeliveryStreamType: DirectPut
+      SplunkDestinationConfiguration:
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref firehoseLogGroup
+          LogStreamName: "SplunkDelivery"
+        HECAcknowledgmentTimeoutInSeconds: 300
+        HECEndpoint: !Ref splunkHECEndpoint
+        HECEndpointType: "Event"
+        HECToken: !Ref splunkHECToken
+        ProcessingConfiguration:
+          Enabled: true
+          Processors:
+          - Parameters:
+            - ParameterName: LambdaArn
+              ParameterValue: !GetAtt lambdaFunction.Arn
+            - ParameterName: RoleArn
+              ParameterValue: !GetAtt firehoseIAMRole.Arn
+            - ParameterName: BufferSizeInMBs
+              ParameterValue: 1
+            - ParameterName: BufferIntervalInSeconds
+              ParameterValue: 60
+            Type: Lambda
+        RetryOptions:
+          DurationInSeconds: 3600
+        S3BackupMode: "FailedEventsOnly"
+        S3Configuration:
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash"
+          BufferingHints:
+            IntervalInSeconds: 300
+            SizeInMBs: 5
+          CompressionFormat: "UNCOMPRESSED"
+          Prefix: !Sub "$${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
+          RoleARN: !GetAtt firehoseIAMRole.Arn
+
+  firehoseIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:PutLogEvents
+          Resource: !GetAtt firehoseLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash/*"
+        - Effect: Allow
+          Action:
+          - lambda:InvokeFunction
+          - lambda:GetFunctionConfiguration
+          Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-iam-policy"
+
+  firehoseIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "firehose.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref firehoseIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  firehoseBacksplashBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  firehoseLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
+      RetentionInDays: 30
+
+  firehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref firehoseLogGroup
+      LogStreamName: "SplunkDelivery"
+
+  firehoseDeliveryAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose cannot deliver to Splunk."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-delivery-alarm"
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DeliveryStreamName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
+      EvaluationPeriods: 1
+      MetricName: DeliveryToSplunk.Success
+      Namespace: AWS/Firehose
+      Period: 60
+      Statistic: Maximum
+      Threshold: 1
+      Unit: Count
+
+# Lambda resources
+  lambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: lambdaLogGroup
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        S3Bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
+        S3Key: cloudwatchmetrics-firehose-resources-lambda.zip
+      Description: Lambda function for processing Firehose messages into standard CloudWatch Metrics format for Splunk.
+      Environment:
+        Variables:
+          SPLUNK_INDEX: !Ref splunkIndex
+          SPLUNK_EVENT_TYPE: !Ref splunkEventType
+          SPLUNK_SOURCE: !Ref splunkSource
+          SPLUNK_HOST: !Ref splunkHost
+      FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function"
+      Handler: lambda.handler
+      MemorySize: 512
+      Role: !GetAtt lambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Timeout: 300
+
+  lambdaIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          - firehose:PutRecordBatch
+          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-iam-policy"
+
+  lambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref lambdaIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  lambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function"
+      RetentionInDays: 7
+
+  # CloudWatch Metrics Stream
+  cwMetricsStreamIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          - firehose:PutRecordBatch
+          Resource: !GetAtt firehose.Arn
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-iam-policy"
+
+  cwMetricsStreamIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "streams.metrics.cloudwatch.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref cwMetricsStreamIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  cwMetricsStream1:
+    Type: AWS::CloudWatch::MetricStream
+    Properties: 
+      FirehoseArn: !GetAtt firehose.Arn
+      Name: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-stream"
+      OutputFormat: json
+      RoleArn: !GetAtt cwMetricsStreamIAMRole.Arn
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  # Monitoring resoruces
+  monitoringSNSTopic:
+    Condition: enableAlerting
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-alerting-topic"
+      TopicName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-alerting-topic"
+      Subscription:
+        - Endpoint: !Ref cloudWatchAlertEmail
+          Protocol: email
+
+  lambdaInvocationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-error-invocations"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+      Unit: Count
+
+  lambdaDurationAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-error-duration"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FunctionName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function"
+      EvaluationPeriods: 1
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Maximum
+      Threshold: 300000
+      Unit: Milliseconds
+
+# Outputs:
+#   firehoseArn:
+#     Value: !GetAtt firehose.Arn
+#   firehoseIAMRoleArn:
+#     Value: !GetAtt firehoseIAMRole.Arn
+#   firehoseBacksplashBucketArn:
+#     Value: !GetAtt firehoseBacksplashBucket.Arn
+#   firehoseLogGroupArn:
+#     Value: !GetAtt firehoseLogGroup.Arn
+#   monitoringSNSTopicArn:
+#     Condition: enableAlerting
+#     Value: !Ref monitoringSNSTopic
+# cwmetricsArn:
+#     Value: !GetAtt cwmetrics.Arn
+#   cwmetricsIAMRoleArn:
+#     Value: !GetAtt cwmetricsIAMRole.Arn
+#   cwmetricsBacksplashBucketArn:
+#     Value: !GetAtt cwmetricsBacksplashBucket.Arn
+  # lambdaFunctionArn:
+  #   Value: !GetAtt lambdaFunction.Arn
+  # lambdaIAMRoleArn:
+  #   Value: !GetAtt lambdaIAMRole.Arn
+  # lambdaLogGroupArn:
+  #   Value: !GetAtt lambdaLogGroup.Arn

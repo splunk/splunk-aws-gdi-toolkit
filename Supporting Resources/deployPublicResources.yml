@@ -15,13 +15,17 @@
       with_items:
         - deploymentStage
         - deploymentStage/s3-sqs-lambda-firehose-resources-lambda
+        - deploymentStage/cloudwatchmetrics-firehose-resources-lambda
 
-    - name: Copy resources to the necessary folders
+    - name: Copy resources to the necessary folders - s3-sqs-lambda-firehose-resources-lambda
       copy:
-        src: "../{{ item }}"
+        src: "../S3-SQS-Lambda-Firehose-Resources/lambda.py"
         dest: deploymentStage/s3-sqs-lambda-firehose-resources-lambda/
-      with_items:
-        - S3-SQS-Lambda-Firehose-Resources/lambda.py
+
+    - name: Copy resources to the necessary folders - cloudwatchmetrics-firehose-resources-lambda
+      copy:
+        src: "../CloudWatchMetrics-Firehose-Resources/lambda.py"
+        dest: deploymentStage/cloudwatchmetrics-firehose-resources-lambda/
 
     - name: Create a zip archive of lambda function
       archive:
@@ -30,6 +34,7 @@
         dest: "deploymentStage/{{ item }}.zip"
       with_items:
         - s3-sqs-lambda-firehose-resources-lambda
+        - cloudwatchmetrics-firehose-resources-lambda
 
     - name: Upload zipped files to S3
       aws_s3:
@@ -42,6 +47,7 @@
         permission: public-read
       with_items:
         - s3-sqs-lambda-firehose-resources-lambda.zip
+        - cloudwatchmetrics-firehose-resources-lambda.zip
 
     - name: Create temp folder for resources
       file:
