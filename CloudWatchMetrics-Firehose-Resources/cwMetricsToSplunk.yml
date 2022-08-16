@@ -185,27 +185,6 @@ Resources:
       LogGroupName: !Ref firehoseLogGroup
       LogStreamName: "SplunkDelivery"
 
-  firehoseDeliveryAlarm:
-    Condition: enableAlerting
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      ActionsEnabled: True
-      AlarmActions: 
-        - !Ref monitoringSNSTopic
-      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose cannot deliver to Splunk."
-      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-delivery-alarm"
-      ComparisonOperator: LessThanThreshold
-      Dimensions:
-      - Name: DeliveryStreamName
-        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
-      EvaluationPeriods: 1
-      MetricName: DeliveryToSplunk.Success
-      Namespace: AWS/Firehose
-      Period: 60
-      Statistic: Maximum
-      Threshold: 1
-      Unit: Count
-
 # Lambda resources
   lambdaFunction:
     Type: AWS::Lambda::Function
@@ -387,27 +366,46 @@ Resources:
       Threshold: 300000
       Unit: Milliseconds
 
-# Outputs:
-#   firehoseArn:
-#     Value: !GetAtt firehose.Arn
-#   firehoseIAMRoleArn:
-#     Value: !GetAtt firehoseIAMRole.Arn
-#   firehoseBacksplashBucketArn:
-#     Value: !GetAtt firehoseBacksplashBucket.Arn
-#   firehoseLogGroupArn:
-#     Value: !GetAtt firehoseLogGroup.Arn
-#   monitoringSNSTopicArn:
-#     Condition: enableAlerting
-#     Value: !Ref monitoringSNSTopic
-# cwmetricsArn:
-#     Value: !GetAtt cwmetrics.Arn
-#   cwmetricsIAMRoleArn:
-#     Value: !GetAtt cwmetricsIAMRole.Arn
-#   cwmetricsBacksplashBucketArn:
-#     Value: !GetAtt cwmetricsBacksplashBucket.Arn
-  # lambdaFunctionArn:
-  #   Value: !GetAtt lambdaFunction.Arn
-  # lambdaIAMRoleArn:
-  #   Value: !GetAtt lambdaIAMRole.Arn
-  # lambdaLogGroupArn:
-  #   Value: !GetAtt lambdaLogGroup.Arn
+  firehoseDeliveryAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose cannot deliver to Splunk."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-delivery-alarm"
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DeliveryStreamName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
+      EvaluationPeriods: 1
+      MetricName: DeliveryToSplunk.Success
+      Namespace: AWS/Firehose
+      Period: 60
+      Statistic: Maximum
+      Threshold: 1
+      Unit: Count
+
+Outputs:
+  firehoseArn:
+    Value: !GetAtt firehose.Arn
+  firehoseIAMRoleArn:
+    Value: !GetAtt firehoseIAMRole.Arn
+  firehoseBacksplashBucketArn:
+    Value: !GetAtt firehoseBacksplashBucket.Arn
+  firehoseLogGroupArn:
+    Value: !GetAtt firehoseLogGroup.Arn
+  cwMetricsStreamArn:
+    Value: !GetAtt cwMetricsStream.Arn
+  cwMetricsStreamIAMRoleArn:
+    Value: !GetAtt cwMetricsStreamIAMRole.Arn
+  lambdaFunctionArn:
+    Value: !GetAtt lambdaFunction.Arn
+  lambdaIAMRoleArn:
+    Value: !GetAtt lambdaIAMRole.Arn
+  lambdaLogGroupArn:
+    Value: !GetAtt lambdaLogGroup.Arn
+  monitoringSNSTopicArn:
+    Condition: enableAlerting
+    Value: !Ref monitoringSNSTopic
