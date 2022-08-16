@@ -65,7 +65,7 @@ Resources:
   firehose:
     Type: AWS::KinesisFirehose::DeliveryStream
     Properties: 
-      DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose"
+      DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
       DeliveryStreamType: DirectPut
       SplunkDestinationConfiguration:
         CloudWatchLoggingOptions:
@@ -93,12 +93,12 @@ Resources:
           DurationInSeconds: 3600
         S3BackupMode: "FailedEventsOnly"
         S3Configuration:
-          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-backsplash"
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash"
           BufferingHints:
             IntervalInSeconds: 300
             SizeInMBs: 5
           CompressionFormat: "UNCOMPRESSED"
-          Prefix: !Sub "$${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose"
+          Prefix: !Sub "$${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
           RoleARN: !GetAtt firehoseIAMRole.Arn
 
   firehoseIAMPolicy:
@@ -115,13 +115,13 @@ Resources:
         - Effect: Allow
           Action:
           - s3:PutObject
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-backsplash/*"
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash/*"
         - Effect: Allow
           Action:
           - lambda:InvokeFunction
           - lambda:GetFunctionConfiguration
-          Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-function"
-      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-iam-policy"
+          Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-iam-policy"
 
   firehoseIAMRole:
     Type: AWS::IAM::Role
@@ -136,7 +136,7 @@ Resources:
             - sts:AssumeRole
       ManagedPolicyArns:
         - !Ref firehoseIAMPolicy
-      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-iam-role"
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-iam-role"
       Tags:
       - Key: service
         Value: !Ref service
@@ -148,7 +148,7 @@ Resources:
   firehoseBacksplashBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-backsplash"
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash"
       AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -161,7 +161,7 @@ Resources:
               SSEAlgorithm: AES256
       LifecycleConfiguration:
         Rules:
-            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-backsplash-cleanup"
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash-cleanup"
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
               Status: Enabled
@@ -176,7 +176,7 @@ Resources:
   firehoseLogGroup: 
     Type: AWS::Logs::LogGroup
     Properties: 
-      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose"
+      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
       RetentionInDays: 30
 
   firehoseLogStream:
@@ -192,12 +192,12 @@ Resources:
       ActionsEnabled: True
       AlarmActions: 
         - !Ref monitoringSNSTopic
-      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose cannot deliver to Splunk."
-      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-delivery-alarm"
+      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose cannot deliver to Splunk."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-delivery-alarm"
       ComparisonOperator: LessThanThreshold
       Dimensions:
       - Name: DeliveryStreamName
-        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose"
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
       EvaluationPeriods: 1
       MetricName: DeliveryToSplunk.Success
       Namespace: AWS/Firehose
@@ -223,7 +223,7 @@ Resources:
           SPLUNK_EVENT_TYPE: !Ref splunkEventType
           SPLUNK_SOURCE: !Ref splunkSource
           SPLUNK_HOST: !Ref splunkHost
-      FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-function"
+      FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function"
       Handler: lambda.handler
       MemorySize: 512
       Role: !GetAtt lambdaIAMRole.Arn
@@ -247,13 +247,13 @@ Resources:
           Action:
           - firehose:PutRecord
           - firehose:PutRecordBatch
-          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose"
+          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
         - Effect: Allow
           Action:
           - logs:CreateLogStream
           - logs:PutLogEvents
-          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-function*"
-      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-iam-policy"
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-iam-policy"
 
   lambdaIAMRole:
     Type: AWS::IAM::Role
@@ -268,7 +268,7 @@ Resources:
             - sts:AssumeRole
       ManagedPolicyArns:
         - !Ref lambdaIAMPolicy
-      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-iam-role"
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-iam-role"
       Tags:
       - Key: service
         Value: !Ref service
@@ -280,7 +280,7 @@ Resources:
   lambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-function"
+      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function"
       RetentionInDays: 7
 
   # CloudWatch Metrics Stream
@@ -295,7 +295,7 @@ Resources:
           - firehose:PutRecord
           - firehose:PutRecordBatch
           Resource: !GetAtt firehose.Arn
-      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-iam-policy"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-iam-policy"
 
   cwMetricsStreamIAMRole:
     Type: AWS::IAM::Role
@@ -310,7 +310,7 @@ Resources:
             - sts:AssumeRole
       ManagedPolicyArns:
         - !Ref cwMetricsStreamIAMPolicy
-      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-iam-role"
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-iam-role"
       Tags:
       - Key: service
         Value: !Ref service
@@ -323,7 +323,7 @@ Resources:
     Type: AWS::CloudWatch::MetricStream
     Properties: 
       FirehoseArn: !GetAtt firehose.Arn
-      Name: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-stream"
+      Name: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-stream"
       OutputFormat: json
       RoleArn: !GetAtt cwMetricsStreamIAMRole.Arn
       Tags:
@@ -339,8 +339,8 @@ Resources:
     Condition: enableAlerting
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-alerting-topic"
-      TopicName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-alerting-topic"
+      DisplayName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-alerting-topic"
+      TopicName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-alerting-topic"
       Subscription:
         - Endpoint: !Ref cloudWatchAlertEmail
           Protocol: email
@@ -352,12 +352,12 @@ Resources:
       ActionsEnabled: True
       AlarmActions: 
         - !Ref monitoringSNSTopic
-      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
-      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-error-invocations"
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-error-invocations"
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
       - Name: FunctionName
-        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-function"
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function"
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -373,12 +373,12 @@ Resources:
       ActionsEnabled: True
       AlarmActions: 
         - !Ref monitoringSNSTopic
-      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
-      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-error-duration"
+      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-error-duration"
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
       - Name: FunctionName
-        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-lambda-function"
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-lambda-function"
       EvaluationPeriods: 1
       MetricName: Duration
       Namespace: AWS/Lambda
