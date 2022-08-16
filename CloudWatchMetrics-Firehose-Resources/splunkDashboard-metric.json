@@ -1,0 +1,267 @@
+{
+	"visualizations": {
+		"viz_AcyVeBot": {
+			"type": "splunk.column",
+			"showProgressBar": false,
+			"showLastUpdated": false,
+			"title": "$sourcetype$ License Usage Over Time (GB)",
+			"dataSources": {
+				"primary": "ds_6WBt9iY9"
+			},
+			"options": {
+				"legendDisplay": "off"
+			}
+		},
+		"viz_KMF849o7": {
+			"type": "splunk.singlevalue",
+			"title": "$sourcetype$ Event License Usage",
+			"dataSources": {
+				"primary": "ds_HUEXsOZi"
+			},
+			"options": {
+				"numberPrecision": 2,
+				"unit": "GB",
+				"trendDisplay": "off",
+				"sparklineDisplay": "off"
+			}
+		},
+		"viz_OF3a0hX5": {
+			"type": "splunk.singlevalue",
+			"title": "$sourcetype$ Event Count",
+			"dataSources": {
+				"primary": "ds_LN5KxPiz"
+			},
+			"options": {
+				"unit": "events",
+				"trendDisplay": "off",
+				"sparklineDisplay": "off"
+			}
+		},
+		"viz_kqPNrs3R": {
+			"type": "splunk.line",
+			"showProgressBar": false,
+			"showLastUpdated": false,
+			"title": "$sourcetype$  Event Count Over Time",
+			"dataSources": {
+				"primary": "ds_7YVGDkt0"
+			},
+			"options": {
+				"legendDisplay": "off"
+			}
+		},
+		"viz_eU3T7rCG": {
+			"type": "splunk.singlevalue",
+			"title": "AWS Accounts Sending Events",
+			"dataSources": {
+				"primary": "ds_noJxIRWy"
+			}
+		},
+		"viz_nO6QvmkM": {
+			"type": "splunk.line",
+			"title": "AWS Accounts Sending $sourcetype$ Events",
+			"dataSources": {
+				"primary": "ds_FFly4UzK"
+			},
+			"options": {
+				"legendDisplay": "off"
+			}
+		}
+	},
+	"dataSources": {
+		"ds_6WBt9iY9": {
+			"type": "ds.search",
+			"options": {
+				"query": "index=_internal source=*license_usage* idx=$metricIndex$ st=$sourcetype$ NOT source=*license_usage_summary.log*\n| timechart sum(b) as ingestedDataGB\n| eval ingestedDataGB = ingestedDataGB/1024/1024/1024",
+				"queryParameters": {
+					"earliest": "$global_time.earliest$",
+					"latest": "$global_time.latest$"
+				}
+			},
+			"name": "licenseUsageBase"
+		},
+		"ds_HUEXsOZi": {
+			"type": "ds.chain",
+			"options": {
+				"extend": "ds_6WBt9iY9",
+				"query": "|  stats sum(ingestedDataGB) as ingestedDataGB"
+			},
+			"name": "licenseUsageTotal"
+		},
+		"ds_7YVGDkt0": {
+			"type": "ds.search",
+			"options": {
+				"query": "index=_internal series=$sourcetype$ sourcetype=splunkd source=*metrics.log*\n| timechart sum(ev) as eventCount"
+			},
+			"name": "eventCountBase"
+		},
+		"ds_LN5KxPiz": {
+			"type": "ds.chain",
+			"options": {
+				"extend": "ds_7YVGDkt0",
+				"query": "|  stats sum(eventCount) as eventCount"
+			},
+			"name": "eventCountTotal"
+		},
+		"ds_FFly4UzK": {
+			"type": "ds.search",
+			"options": {
+				"query": "| mstats count where index=$metricIndex$ metric_name=* sourcetype=$sourcetype$ by AccountID span=15m\n| timechart dc(AccountID) as accountCount"
+			},
+			"name": "accountCountTimechart"
+		},
+		"ds_noJxIRWy": {
+			"type": "ds.search",
+			"options": {
+				"query": "| mstats count where index=$metricIndex$ metric_name=* sourcetype=$sourcetype$c by AccountID\n| stats dc(AccountID) as accountCount"
+			},
+			"name": "accountCountTotal"
+		},
+		"ds_N5KOizZ9": {
+			"type": "ds.search",
+			"options": {
+				"query": "| rest /services/data/indexes datatype=metric\n| table title",
+				"queryParameters": {
+					"earliest": "$global_time.earliest$",
+					"latest": "$global_time.latest$"
+				}
+			},
+			"name": "indexList"
+		},
+		"ds_f9m7vKr7": {
+			"type": "ds.search",
+			"options": {
+				"query": "| mstats count where index=$metricIndex$ metric_name=* by sourcetype\n| table sourcetype"
+			},
+			"name": "sourcetypeList"
+		}
+	},
+	"defaults": {
+		"dataSources": {
+			"ds.search": {
+				"options": {
+					"queryParameters": {
+						"latest": "$global_time.latest$",
+						"earliest": "$global_time.earliest$"
+					}
+				}
+			}
+		}
+	},
+	"inputs": {
+		"input_global_trp": {
+			"type": "input.timerange",
+			"options": {
+				"token": "global_time",
+				"defaultValue": "-24h@h,now"
+			},
+			"title": "Global Time Range"
+		},
+		"input_9rNFa8NM": {
+			"options": {
+				"items": [
+					{
+						"label": "main",
+						"value": "main"
+					}
+				],
+				"defaultValue": "main",
+				"token": "metricIndex"
+			},
+			"title": "Metric Index",
+			"type": "input.dropdown",
+			"dataSources": {
+				"primary": "ds_N5KOizZ9"
+			}
+		},
+		"input_C3SY1WEW": {
+			"options": {
+				"items": [
+					{
+						"label": "All",
+						"value": "*"
+					}
+				],
+				"defaultValue": "*",
+				"token": "sourcetype"
+			},
+			"title": "Event Sourcetype",
+			"type": "input.dropdown",
+			"dataSources": {
+				"primary": "ds_f9m7vKr7"
+			}
+		}
+	},
+	"layout": {
+		"type": "grid",
+		"options": {},
+		"structure": [
+			{
+				"item": "viz_KMF849o7",
+				"type": "block",
+				"position": {
+					"x": 0,
+					"y": 0,
+					"w": 400,
+					"h": 100
+				}
+			},
+			{
+				"item": "viz_AcyVeBot",
+				"type": "block",
+				"position": {
+					"x": 0,
+					"y": 100,
+					"w": 1200,
+					"h": 300
+				}
+			},
+			{
+				"item": "viz_kqPNrs3R",
+				"type": "block",
+				"position": {
+					"x": 0,
+					"y": 400,
+					"w": 1200,
+					"h": 300
+				}
+			},
+			{
+				"item": "viz_nO6QvmkM",
+				"type": "block",
+				"position": {
+					"x": 0,
+					"y": 700,
+					"w": 1200,
+					"h": 300
+				}
+			},
+			{
+				"item": "viz_OF3a0hX5",
+				"type": "block",
+				"position": {
+					"x": 400,
+					"y": 0,
+					"w": 400,
+					"h": 100
+				}
+			},
+			{
+				"item": "viz_eU3T7rCG",
+				"type": "block",
+				"position": {
+					"x": 800,
+					"y": 0,
+					"w": 400,
+					"h": 100
+				}
+			}
+		],
+		"globalInputs": [
+			"input_global_trp",
+			"input_9rNFa8NM",
+			"input_C3SY1WEW"
+		]
+	},
+	"description": "",
+	"title": "Splunk AWS GDI Toolkit - CloudWatch-Metrics-Firehose as Metric"
+}
