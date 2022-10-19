@@ -39,7 +39,7 @@ def retrieveObjectInfo(record):
 	
 	# Try to parse the record for file information
 	try:
-		record = json.loads(record['body'])
+		record = json.loads(json.loads(record['body'])['Message'])
 		bucket = record['Records'][0]['s3']['bucket']['name']
 		key = record['Records'][0]['s3']['object']['key']
 

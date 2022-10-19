@@ -300,9 +300,9 @@ Resources:
               ExpirationInDays: !Ref s3ObjectExpirationInDays
               Status: Enabled
       NotificationConfiguration:
-        QueueConfigurations:
+        TopicConfigurations:
           - Event: "s3:ObjectCreated:*"
-            Queue: !GetAtt s3BucketNotificationSQSQueue.Arn
+            Topic: !GetAtt s3BucketNotificationSNSTopic.TopicArn
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -463,6 +463,45 @@ Resources:
           Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
 
   # S3 Notifications > SQS
+  s3BucketNotificationSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-sns-topic"
+      Subscription:
+        - Endpoint: !GetAtt s3BucketNotificationSQSQueue.Arn
+          Protocol: sqs
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      - Key: logType
+        Value: !Ref logType
+      TopicName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-sns-topic"
+
+  s3BucketNotificationSNSTopicPolicy: 
+    Type: AWS::SNS::TopicPolicy
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-sns-topicPolicy"
+        Statement:
+        -
+          Sid: Send messages to SQS
+          Effect: Allow
+          Principal:
+            AWS: "*"
+          Action:
+            - "SNS:Publish"
+          Resource: "*"
+          Condition:
+            ArnLike: 
+              "aws:SourceARN": !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
+      Topics:
+        - !Ref "s3BucketNotificationSNSTopic"
+
   s3BucketNotificationSQSQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -496,6 +535,17 @@ Resources:
           Condition:
             ArnLike: 
               "aws:SourceARN": !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
+        -
+          Sid: Send messages from SNS
+          Effect: Allow
+          Principal:
+            AWS: "*"
+          Action:
+            - "SQS:SendMessage"
+          Resource: "*"
+          Condition:
+            ArnLike: 
+              "aws:SourceARN": !GetAtt s3BucketNotificationSNSTopic.TopicArn
       Queues:
         - !Ref "s3BucketNotificationSQSQueue"
 
