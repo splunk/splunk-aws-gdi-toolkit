@@ -121,6 +121,12 @@ Parameters:
       - prefix-ISO8601
       - delineated-epoch
       - delineated-ISO8601
+      - delineated-strftime
+
+  splunkStrfTimeFormat:
+    Type: String
+    Description: Strftime format of timestamp.  Leave empty if the timestamp does not need to be specified in strftime.
+    Default: ""
 
   splunkJSONFormat:
     Type: String
@@ -198,6 +204,12 @@ Conditions:
   billingNewBucket: !And
     - !Condition billingLog
     - !Condition createNewS3Bucket
+  s3ServerAccessLog: !Equals
+    - !Ref logType
+    - "s3serveraccesslog"
+  s3ServerAccessLogNewBucket: !And
+    - !Condition s3ServerAccessLog
+    - !Condition createNewS3Bucket
   customLogType: !And
     - !Not
        - !Condition cloudTrail
@@ -209,6 +221,8 @@ Conditions:
        - !Condition route53Log
     - !Not
        - !Condition billingLog
+    - !Not
+       - !Condition s3ServerAccessLog
   customLogTypeNewBucket: !And
     - !Condition customLogType
     - !Condition createNewS3Bucket
@@ -282,10 +296,6 @@ Resources:
     Properties:
       AccessControl: Private
       BucketEncryption: 
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
@@ -440,6 +450,26 @@ Resources:
           Condition:
             StringEquals:
               aws:SourceArn: !Sub "arn:aws:cur:us-east-1:${AWS::AccountId}:definition/*"
+              aws:SourceAccount: !Ref AWS::AccountId
+
+  s3BucketPolicyS3ServerAccessLogs:
+    Type: AWS::S3::BucketPolicy
+    Condition: s3ServerAccessLogNewBucket
+    Properties:
+      Bucket: !Ref s3Bucket
+      PolicyDocument:
+        Statement:
+        - Sid: "S3ServerAccessLogsPolicy"
+          Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            Service: logging.s3.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
+          Condition:
+            ArnLike:
+              aws:SourceArn: "arn:aws:s3:::splunk-aws-gdi-tooklit-us-west-2-public-bucket"
+            StringEquals:
               aws:SourceAccount: !Ref AWS::AccountId
 
   s3BucketPolicyCustomRole:
@@ -625,6 +655,7 @@ Resources:
           SPLUNK_EVENT_DELIMITER: !Ref splunkEventDelimiter
           SPLUNK_TIME_DELINEATED_FIELD: !Ref splunkTimeDelineatedField
           SPLUNK_TIME_FORMAT: !Ref splunkTimeFormat
+          SPLUNK_STRFTIME_FORMAT: !Ref splunkStrfTimeFormat
           SPLUNK_SOURCETYPE: !Ref splunkSourcetype
           SPLUNK_SOURCE: !Ref splunkSource
           SPLUNK_HOST: !Ref splunkHost
