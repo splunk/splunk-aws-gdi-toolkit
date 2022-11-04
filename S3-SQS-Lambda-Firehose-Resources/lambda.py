@@ -1,4 +1,4 @@
-import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv
+import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime
 
 # AWS-related setup
 s3Client = boto3.client('s3')
@@ -12,6 +12,7 @@ SPLUNK_TIME_PREFIX = os.environ['SPLUNK_TIME_PREFIX']
 SPLUNK_EVENT_DELIMITER = os.environ['SPLUNK_EVENT_DELIMITER']
 SPLUNK_TIME_DELINEATED_FIELD = os.environ['SPLUNK_TIME_DELINEATED_FIELD']
 SPLUNK_TIME_FORMAT = os.environ['SPLUNK_TIME_FORMAT']
+SPLUNK_STRFTIME_FORMAT = os.environ['SPLUNK_STRFTIME_FORMAT']
 SPLUNK_SOURCETYPE = os.environ['SPLUNK_SOURCETYPE']
 SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
 SPLUNK_HOST = os.environ['SPLUNK_HOST']
@@ -70,6 +71,10 @@ def validateFileType(key):
 		if (extension in validFileType):
 			return("Valid file type.")
 
+	# Check for aws:s3:accesslogs
+	if (SPLUNK_SOURCETYPE == "aws:s3:accesslogs" and len(key.split(".")) == 1):
+		return("Valid file type.")
+
 	return("Unsupported file type.")
 
 
@@ -120,7 +125,7 @@ def uncompressFile(path):
 # Split events into a list. Additional file extensions should be added here.
 def eventBreak(events, extension):
 
-	if (extension == "csv" or extension == "log"):
+	if (extension == "csv" or extension == "log" or SPLUNK_SOURCETYPE == "aws:s3:accesslogs"):
 		splitEvents = events.split("\n")
 
 		# Remove empty last line if it exists
@@ -221,6 +226,10 @@ def getTimestamp(event, delimiter):
 		elif (SPLUNK_TIME_FORMAT == "delineated-ISO8601"):
 			iso8601Timestamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
 			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
+		# For custom strftime formats
+		elif(SPLUNK_TIME_FORMAT == "delineated-strftime"):
+			rawTimeStamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
+			return(int(datetime.datetime.strptime(rawTimeStamp, SPLUNK_STRFTIME_FORMAT).strftime("%s")))
 	except:
 		# If not standard, set to current time
 		print("Unable to extract timestamp.  Falling back to current time.")
