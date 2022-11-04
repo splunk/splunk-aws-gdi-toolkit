@@ -17,6 +17,14 @@ Parameters:
     Description: Used to identify a contact for the resources created in this stack.  As an example, this could be an email address or username.
     Type: String
 
+  s3AccessLogBucket:
+    Description: Bucket name to send S3 Access Logs to.
+    Type: String
+
+  cloudTrailS3BucketName:
+    Description: Bucket name to send CloudTrail logs to.
+    Type: String
+
 Resources:
   # S3 resources
   publicS3Bucket:
