@@ -77,7 +77,7 @@ Resources:
           - firehose:PutRecord
           - firehose:PutRecordBatch
           Resource: !GetAtt firehose.Arn
-      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-policy"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-cwl-iam-policy"
 
   cwlIAMRole:
     Type: AWS::IAM::Role
@@ -92,7 +92,7 @@ Resources:
             - sts:AssumeRole
       ManagedPolicyArns:
         - !Ref cwlIAMPolicy
-      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-role"
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-cwl-iam-role"
       Tags:
       - Key: service
         Value: !Ref service
@@ -160,7 +160,7 @@ Resources:
           Action:
           - lambda:InvokeFunction
           - lambda:GetFunctionConfiguration
-          Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-function"
+          Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
       ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-policy"
 
   firehoseIAMRole:
@@ -266,13 +266,13 @@ Resources:
           Action:
           - firehose:PutRecord
           - firehose:PutRecordBatch
-          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-firehose"
+          Resource: !Sub "arn:aws:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
         - Effect: Allow
           Action:
           - logs:CreateLogStream
           - logs:PutLogEvents
-          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-function*"
-      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-iam-policy"
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-iam-policy"
 
   lambdaIAMRole:
     Type: AWS::IAM::Role
