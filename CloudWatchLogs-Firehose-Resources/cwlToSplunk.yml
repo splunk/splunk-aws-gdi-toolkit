@@ -1,0 +1,325 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create infrastructure to send logs that are put into a CloudWatch Logs group.
+
+Parameters:
+
+  service:
+    Type: String
+    Description: Service name used in tagging AWS resources.
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
+    Type: String
+    Default: ""
+
+  logType:
+    Type: String
+    Description: Log type, used in AWS resource names.  Must follow the normal rules for S3 bucket names (https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html), but also less than 30 characters long.
+    AllowedPattern: "(?!(xn--|-s3alias$))^[a-z0-9][a-z0-9-]{1,20}[a-z0-9]$"
+
+  cwlFilterPattern:
+    Type: String
+    Description: Filter pattern used control which data is sent to Splunk from CloudWatch Logs - https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html
+
+  cwlLogGroupName:
+    Type: String
+    Description: CloudWatch Log Group Name which has events that will be forwarded to Splunk.
+    AllowedPattern: [\.\-_/#A-Za-z0-9]+
+
+  splunkHECEndpoint:
+    Type: String
+    Description: Destination URL that Firehose will send data to.
+
+  splunkHECToken:
+    Type: String
+    Description: HEC token Firehose will use to authenticate data being sent to Splunk.
+
+  splunkIndex:
+    Type: String
+    Description: Name of the index in Splunk events will be sent to.
+
+  splunkSourcetype:
+    Type: String
+    Description: Name of the sourcetype for the events that will be sent to Splunk.
+
+  splunkSource:
+    Type: String
+    Description: Name of the source for the events that will be sent to Splunk.
+
+  splunkHost:
+    Type: String
+    Description: Name of the host for the events that will be sent to Splunk.
+
+Resources:
+
+  # CloudWatch Logs > Firehose resources
+  cwlSubscription: 
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !GetAtt firehose.Arn
+      FilterPattern: !Ref cwlFilterPattern
+      LogGroupName: !Ref cwlLogGroupName
+      RoleArn: !GetAtt cwlIAMRole.Arn
+
+  cwlIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          - firehose:PutRecordBatch
+          Resource: !GetAtt firehose.Arn
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-policy"
+
+  cwlIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "logs.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref cwlIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  # Firehose > Splunk resources
+  firehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+      DeliveryStreamType: DirectPut
+      SplunkDestinationConfiguration:
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref firehoseLogGroup
+          LogStreamName: "SplunkDelivery"
+        HECAcknowledgmentTimeoutInSeconds: 300
+        HECEndpoint: !Ref splunkHECEndpoint
+        HECEndpointType: "Event"
+        HECToken: !Ref splunkHECToken
+        ProcessingConfiguration:
+          Enabled: true
+          Processors:
+          - Parameters:
+            - ParameterName: LambdaArn
+              ParameterValue: !GetAtt lambdaFunction.Arn
+            - ParameterName: RoleArn
+              ParameterValue: !GetAtt firehoseIAMRole.Arn
+            - ParameterName: BufferSizeInMBs
+              ParameterValue: 1
+            - ParameterName: BufferIntervalInSeconds
+              ParameterValue: 60
+            Type: Lambda
+        RetryOptions:
+          DurationInSeconds: 3600
+        S3BackupMode: "FailedEventsOnly"
+        S3Configuration:
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash"
+          BufferingHints:
+            IntervalInSeconds: 300
+            SizeInMBs: 5
+          CompressionFormat: "UNCOMPRESSED"
+          Prefix: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+          RoleARN: !GetAtt firehoseIAMRole.Arn
+
+  firehoseIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:PutLogEvents
+          Resource: !GetAtt firehoseLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash/*"
+        - Effect: Allow
+          Action:
+          - lambda:InvokeFunction
+          - lambda:GetFunctionConfiguration
+          Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-function"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-policy"
+
+  firehoseIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "firehose.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref firehoseIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  firehoseBacksplashBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  firehoseLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+      RetentionInDays: 30
+
+  firehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref firehoseLogGroup
+      LogStreamName: "SplunkDelivery"
+
+# Lambda resources
+  lambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: lambdaLogGroup
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        S3Bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
+        S3Key: # need this
+      Description: Lambda function for processing Firehose messages into standard CloudWatch Metrics format for Splunk.
+      Environment:
+        Variables:
+          SPLUNK_INDEX: !Ref splunkIndex
+          SPLUNK_SOURCE: !Ref splunkSource
+          SPLUNK_SOURCETYPE: !Ref splunkSourcetype
+          SPLUNK_HOST: !Ref splunkHost
+      FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-function"
+      Handler: lambda.handler
+      MemorySize: 512
+      Role: !GetAtt lambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Timeout: 300
+
+  lambdaIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          - firehose:PutRecordBatch
+          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-firehose"
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-function*"
+      ManagedPolicyName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-iam-policy"
+
+  lambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref lambdaIAMPolicy
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-iam-role"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  lambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-function"
+      RetentionInDays: 7
+
+Outputs:
+  cwlSubscriptionName:
+    Value: !GetAtt cwlSubscription.FilterName
+  cwlIAMRoleArn:
+    Value: !GetAtt cwlIAMRole.Arn
+  firehoseArn:
+    Value: !GetAtt firehose.Arn
+  firehoseIAMRoleArn:
+    Value: !GetAtt firehoseIAMRole.Arn
+  firehoseBacksplashBucketArn:
+    Value: !GetAtt firehoseBacksplashBucket.Arn
+  firehoseLogGroupArn:
+    Value: !GetAtt firehoseLogGroup.Arn
+  lambdaFunctionArn:
+    Value: !GetAtt lambdaFunction.Arn
+  lambdaIAMRoleArn:
+    Value: !GetAtt lambdaIAMRole.Arn
+  lambdaLogGroupArn:
+    Value: !GetAtt lambdaLogGroup.Arn
