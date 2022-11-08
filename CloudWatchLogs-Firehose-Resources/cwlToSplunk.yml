@@ -21,17 +21,15 @@ Parameters:
 
   logType:
     Type: String
-    Description: Log type, used in AWS resource names.  Must follow the normal rules for S3 bucket names (https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html), but also less than 30 characters long.
-    AllowedPattern: "(?!(xn--|-s3alias$))^[a-z0-9][a-z0-9-]{1,20}[a-z0-9]$"
+    Description: Log type, used in AWS resource names.
 
   cwlFilterPattern:
     Type: String
-    Description: Filter pattern used control which data is sent to Splunk from CloudWatch Logs - https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html
+    Description: Filter pattern used control which data is sent to Splunk from CloudWatch Logs.  Leave blank to capture all logs.  https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html
 
   cwlLogGroupName:
     Type: String
     Description: CloudWatch Log Group Name which has events that will be forwarded to Splunk.
-    AllowedPattern: [\.\-_/#A-Za-z0-9]+
 
   splunkHECEndpoint:
     Type: String
