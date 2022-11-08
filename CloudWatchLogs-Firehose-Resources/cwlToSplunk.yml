@@ -234,15 +234,15 @@ Resources:
         - arm64
       Code:
         S3Bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
-        S3Key: # need this
-      Description: Lambda function for processing Firehose messages into standard CloudWatch Metrics format for Splunk.
+        S3Key: cloudwatchmetrics-firehose-resources-lambda.zip # need to adjust this still
+      Description: Lambda function for processing Firehose messages into standard event format for Splunk.
       Environment:
         Variables:
           SPLUNK_INDEX: !Ref splunkIndex
           SPLUNK_SOURCE: !Ref splunkSource
           SPLUNK_SOURCETYPE: !Ref splunkSourcetype
           SPLUNK_HOST: !Ref splunkHost
-      FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-function"
+      FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
       Handler: lambda.handler
       MemorySize: 512
       Role: !GetAtt lambdaIAMRole.Arn
@@ -287,7 +287,7 @@ Resources:
             - sts:AssumeRole
       ManagedPolicyArns:
         - !Ref lambdaIAMPolicy
-      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-iam-role"
+      RoleName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-iam-role"
       Tags:
       - Key: service
         Value: !Ref service
@@ -299,7 +299,7 @@ Resources:
   lambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-${AWS::Region}-${logType}-${splunkEventType}-lambda-function"
+      LogGroupName: !Sub "/aws/lambda/${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
       RetentionInDays: 7
 
 Outputs:
