@@ -246,7 +246,7 @@ Resources:
         - arm64
       Code:
         S3Bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
-        S3Key: cloudwatchmetrics-firehose-resources-lambda.zip # need to adjust this still
+        S3Key: cloudwatchlogs-firehose-resources-lambda.zip
       Description: Lambda function for processing Firehose messages into standard event format for Splunk.
       Environment:
         Variables:
