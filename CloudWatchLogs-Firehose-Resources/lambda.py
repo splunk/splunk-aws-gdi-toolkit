@@ -1,7 +1,7 @@
 import os, gzip, json, base64
 
 SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
-SPLUNK_SOURCETYPE = "aws:cloudwatchlogs" # fix this os.environ['SPLUNK_SOURCETYPE']
+SPLUNK_SOURCETYPE = os.environ['SPLUNK_SOURCETYPE']
 SPLUNK_HOST = os.environ['SPLUNK_HOST']
 SPLUNK_INDEX = os.environ['SPLUNK_INDEX']
 
