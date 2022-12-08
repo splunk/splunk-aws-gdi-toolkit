@@ -1,4 +1,4 @@
-import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime
+import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime, pandas, fastparquet
 
 # AWS-related setup
 s3Client = boto3.client('s3')
@@ -22,7 +22,7 @@ SPLUNK_CSV_TO_JSON = os.environ['SPLUNK_CSV_TO_JSON']
 SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS = os.environ['SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS']
 
 # Lambda things
-validFileTypes = ["gz", "gzip", "json", "csv", "log"]
+validFileTypes = ["gz", "gzip", "json", "csv", "log", "parquet"]
 unsupportedFileTypes = ["CloudTrail-Digest", "billing-report-Manifest"]
 delimiterMapping = {"space": " ", "tab": "	", "comma": ",", "semicolon": ";"}
 
@@ -115,6 +115,19 @@ def uncompressFile(path):
 			os.remove(path)
 
 			return(uncompressedFilePath)
+
+		# If parquet file...
+		elif (extension == "parquet"):
+			df = pandas.read_parquet(path)
+			json_array = df.to_json(orient='records', lines=True)
+			uncompressedFilePath = uncompressedFilePath + ".json"
+			with open(uncompressedFilePath, "w") as f_out:
+    			f_out.write(json_array)
+
+    		# Remove the uncompressed file
+    		os.remove(path)
+
+    		return(uncompressedFilePath)
 
 	except:
 		return("Unable to uncompress file")
