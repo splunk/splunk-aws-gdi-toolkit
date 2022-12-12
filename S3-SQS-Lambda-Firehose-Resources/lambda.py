@@ -1,4 +1,4 @@
-import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime
+import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime, pandas, pyarrow
 
 # AWS-related setup
 s3Client = boto3.client('s3')
@@ -22,7 +22,7 @@ SPLUNK_CSV_TO_JSON = os.environ['SPLUNK_CSV_TO_JSON']
 SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS = os.environ['SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS']
 
 # Lambda things
-validFileTypes = ["gz", "gzip", "json", "csv", "log"]
+validFileTypes = ["gz", "gzip", "json", "csv", "log", "parquet"]
 unsupportedFileTypes = ["CloudTrail-Digest", "billing-report-Manifest"]
 delimiterMapping = {"space": " ", "tab": "	", "comma": ",", "semicolon": ";"}
 
@@ -110,6 +110,19 @@ def uncompressFile(path):
 			with gzip.open(path, 'rb') as f_in:
 				with open(uncompressedFilePath, 'wb') as f_out:
 					shutil.copyfileobj(f_in, f_out)
+
+			# Remove the uncompressed file
+			os.remove(path)
+
+			return(uncompressedFilePath)
+
+		# If parquet file...
+		elif (extension == "parquet"):
+			df = pandas.read_parquet(path)
+			json_array = df.to_json(orient='records', lines=True)
+			uncompressedFilePath = uncompressedFilePath + ".json"
+			with open(uncompressedFilePath, "w") as f_out:
+				f_out.write(json_array)
 
 			# Remove the uncompressed file
 			os.remove(path)
@@ -218,6 +231,13 @@ def getTimestamp(event, delimiter):
 
 			iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + "(.{1,5})?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{0,10})?Z)", str(event)).group(regexGroupIndex) #fix eventTime
 			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
+		# For prefix epoch formats
+		elif (SPLUNK_TIME_FORMAT == "prefix-epoch"):
+			epochTimeString = re.search("" + SPLUNK_TIME_PREFIX + "(.{1,5})?\d{10,13}", str(event)).group(0)
+			epochTime = re.search("\d{10,13}", str(epochTimeString)).group(0)
+			if (len(epochTime) == 13):
+				epochTime = float(epochTime) / 1000
+			return(float(epochTime))
 		# For field-delimited epoch time
 		elif (SPLUNK_TIME_FORMAT == "delineated-epoch"):
 			epochTime = float(evenIMITED(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])

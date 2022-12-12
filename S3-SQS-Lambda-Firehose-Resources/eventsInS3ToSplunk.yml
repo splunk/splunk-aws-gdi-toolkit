@@ -82,6 +82,11 @@ Parameters:
     MinValue: 0
     MaxValue: 300
 
+  lambdaLayerArn:
+    Type: String
+    Description: Lambda layer ARN used when deploying the Lambda function.  Leave blank if no layer is needed.
+    Default: ""
+
   splunkIndex:
     Type: String
     Description: Name of the index in Splunk events will be sent to.
@@ -119,6 +124,7 @@ Parameters:
     Default: prefix-ISO8601
     AllowedValues:
       - prefix-ISO8601
+      - prefix-epoch
       - delineated-epoch
       - delineated-ISO8601
       - delineated-strftime
@@ -226,6 +232,13 @@ Conditions:
   customLogTypeNewBucket: !And
     - !Condition customLogType
     - !Condition createNewS3Bucket
+  lambdaLayerNeeded: !Not 
+    - !Equals 
+      - !Ref lambdaLayerArn
+      - ""
+  lambdaLayerNotNeeded: !Equals
+    - !Ref lambdaLayerArn
+    - ""
   enableAlerting: !Not 
     - !Equals 
       - !Ref cloudWatchAlertEmail
@@ -639,6 +652,7 @@ Resources:
 # Lambda resources
   lambdaFunction:
     Type: AWS::Lambda::Function
+    Condition: lambdaLayerNotNeeded
     DependsOn: lambdaLogGroup
     Properties:
       Architectures:
@@ -665,6 +679,49 @@ Resources:
           SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS: !Ref splunkRemoveEmptyCSVToJsonFields
       FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
       Handler: lambda.handler
+      MemorySize: !Ref lambdaProcessorMemorySize
+      Role: !GetAtt lambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Timeout: !Ref lambdaProcessorTimeout
+
+  lambdaFunctionWithLayer:
+    Type: AWS::Lambda::Function
+    Condition: lambdaLayerNeeded
+    DependsOn: lambdaLogGroup
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        S3Bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
+        S3Key: s3-sqs-lambda-firehose-resources-lambda.zip
+      Description: Lambda function for processing SQS messages that contain events, then sending them to firehose to be forwarded to Splunk.
+      Environment:
+        Variables:
+          firehoseDeliverySreamName: !Ref firehose
+          SPLUNK_INDEX: !Ref splunkIndex
+          SPLUNK_TIME_PREFIX: !Ref splunkTimePrefix
+          SPLUNK_EVENT_DELIMITER: !Ref splunkEventDelimiter
+          SPLUNK_TIME_DELINEATED_FIELD: !Ref splunkTimeDelineatedField
+          SPLUNK_TIME_FORMAT: !Ref splunkTimeFormat
+          SPLUNK_STRFTIME_FORMAT: !Ref splunkStrfTimeFormat
+          SPLUNK_SOURCETYPE: !Ref splunkSourcetype
+          SPLUNK_SOURCE: !Ref splunkSource
+          SPLUNK_HOST: !Ref splunkHost
+          SPLUNK_JSON_FORMAT: !Ref splunkJSONFormat
+          SPLUNK_IGNORE_FIRST_LINE: !Ref splunkIgnoreFirstLine
+          SPLUNK_CSV_TO_JSON: !Ref splunkCSVToJSON
+          SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS: !Ref splunkRemoveEmptyCSVToJsonFields
+      FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
+      Handler: lambda.handler
+      Layers:
+        - !Ref lambdaLayerArn
       MemorySize: !Ref lambdaProcessorMemorySize
       Role: !GetAtt lambdaIAMRole.Arn
       Runtime: python3.9
@@ -742,7 +799,7 @@ Resources:
       BatchSize: !Ref lambdaProcessorBatchSize
       Enabled: true
       EventSourceArn: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::AccountId}-${AWS::Region}-${logType}-sqs-queue"
-      FunctionName: !GetAtt lambdaFunction.Arn
+      FunctionName: !If [lambdaLayerNeeded, !GetAtt lambdaFunctionWithLayer.Arn, !GetAtt lambdaFunction.Arn]
       MaximumBatchingWindowInSeconds: !Ref lambdaProcessorBatchingWindowInSeconds
 
   # Monitoring resoruces
@@ -835,7 +892,7 @@ Outputs:
   firehoseLogGroupArn:
     Value: !GetAtt firehoseLogGroup.Arn
   lambdaFunctionArn:
-    Value: !GetAtt lambdaFunction.Arn
+    Value: !If [lambdaLayerNeeded, !GetAtt lambdaFunctionWithLayer.Arn, !GetAtt lambdaFunction.Arn]
   lambdaIAMRoleArn:
     Value: !GetAtt lambdaIAMRole.Arn
   lambdaLogGroupArn:
