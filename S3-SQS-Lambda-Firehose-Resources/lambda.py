@@ -1,4 +1,4 @@
-import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime, pandas, fastparquet
+import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime, pandas, pyarrow
 
 # AWS-related setup
 s3Client = boto3.client('s3')
@@ -122,12 +122,12 @@ def uncompressFile(path):
 			json_array = df.to_json(orient='records', lines=True)
 			uncompressedFilePath = uncompressedFilePath + ".json"
 			with open(uncompressedFilePath, "w") as f_out:
-    			f_out.write(json_array)
+				f_out.write(json_array)
 
-    		# Remove the uncompressed file
-    		os.remove(path)
+			# Remove the uncompressed file
+			os.remove(path)
 
-    		return(uncompressedFilePath)
+			return(uncompressedFilePath)
 
 	except:
 		return("Unable to uncompress file")
