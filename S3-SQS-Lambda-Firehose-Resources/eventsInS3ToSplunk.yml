@@ -119,6 +119,7 @@ Parameters:
     Default: prefix-ISO8601
     AllowedValues:
       - prefix-ISO8601
+      - prefix-epoch
       - delineated-epoch
       - delineated-ISO8601
       - delineated-strftime
