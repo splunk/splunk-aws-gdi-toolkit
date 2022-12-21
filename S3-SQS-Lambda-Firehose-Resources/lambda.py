@@ -1,4 +1,4 @@
-import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime #, pandas, pyarrow
+import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime, pandas, pyarrow
 
 # AWS-related setup
 s3Client = boto3.client('s3')
@@ -22,7 +22,7 @@ SPLUNK_CSV_TO_JSON = os.environ['SPLUNK_CSV_TO_JSON']
 SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS = os.environ['SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS']
 
 # Lambda things
-validFileTypes = ["gz", "gzip", "json", "csv", "log"] #, "parquet"]
+validFileTypes = ["gz", "gzip", "json", "csv", "log", "parquet"]
 unsupportedFileTypes = ["CloudTrail-Digest", "billing-report-Manifest"]
 delimiterMapping = {"space": " ", "tab": "	", "comma": ",", "semicolon": ";"}
 
