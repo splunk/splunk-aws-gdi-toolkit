@@ -21,10 +21,6 @@ Parameters:
     Description: Bucket name to send S3 Access Logs to.
     Type: String
 
-  cloudTrailS3BucketName:
-    Description: Bucket name to send CloudTrail logs to.
-    Type: String
-
 Resources:
   # S3 resources
   publicS3Bucket:
@@ -63,25 +59,6 @@ Resources:
         Value: !Ref contact
       - Key: public
         Value: true
-
-  publicS3BucketCloudTrail:
-    Type: AWS::CloudTrail::Trail
-    Properties:
-      EventSelectors:
-        - DataResources:
-          - Type: AWS::S3::Object
-            Values:
-              - !Sub "arn:aws:s3:::${service}-${AWS::Region}-public-bucket/*"
-      IsLogging: true
-      S3BucketName: !Ref cloudTrailS3BucketName
-      Tags:
-      - Key: service
-        Value: !Ref service
-      - Key: stage
-        Value: !Ref stage
-      - Key: contact
-        Value: !Ref contact
-      TrailName: !Sub "${service}-${AWS::Region}-public-bucket-cloudtrail"
 
 Outputs:
   publicS3BucketArn:
