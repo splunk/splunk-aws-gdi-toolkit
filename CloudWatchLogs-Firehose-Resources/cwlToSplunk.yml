@@ -389,8 +389,8 @@ Resources:
       Unit: Count
 
 Outputs:
-  cwlSubscriptionName:
-    Value: !GetAtt cwlSubscription.FilterName
+  cwlSubscriptionID:
+    Value: !Ref cwlSubscription
   cwlIAMRoleArn:
     Value: !GetAtt cwlIAMRole.Arn
   firehoseArn:
