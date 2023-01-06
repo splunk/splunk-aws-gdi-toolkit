@@ -29,12 +29,12 @@ def handler(event, context):
 		for logEvent in decodedData['logEvents']:
 
 			# Format Splunk event
-			formattedEvents += '{ "time": ' +  str(logEvent['timestamp']) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "' + SPLUNK_SOURCETYPE + '", "index": "' + SPLUNK_INDEX + '", "event": "' + str(logEvent['message'])[:-1] + '"}\n'
-
+			formattedEvents += '{ "time": ' +  str(logEvent['timestamp']) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "' + SPLUNK_SOURCETYPE + '", "index": "' + SPLUNK_INDEX + '", "event": "' + " ".join(str(logEvent['message']).split()) + '"}'
+		
 		# Construct return event
 		returnEvent['recordId'] = dict(record)['recordId']
 		returnEvent['result'] = "Ok"
-		returnEvent['data'] = base64.b64encode(bytearray(formattedEvents, 'utf-8'))
+		returnEvent['data'] = base64.b64encode(formattedEvents.encode('utf-8')).decode()
 
 		# Print for debugging
 		print("Processed record " + record['recordId'])
