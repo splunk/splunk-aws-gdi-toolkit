@@ -16,12 +16,12 @@ class CloudWatchMetrics_Firehose_Resources_Tests(unittest.TestCase):
 
 		# Read in test inputs
 		test_input = []
-		with open('test_fixtures_events.txt') as test_fixtures_events:
+		with open('test_fixtures_parseEventAsEvent_messages.txt') as test_fixtures_events:
 			test_input = test_fixtures_events.readlines()
 
 		# Read in test outputs
 		test_output = []
-		with open('test_fixtures_returnRecords.txt') as test_fixtures_returnRecords:
+		with open('test_fixtures_parseEventAsEvent_returns.txt') as test_fixtures_returnRecords:
 			test_output = test_fixtures_returnRecords.readlines()
 
 		testRange = range(len(test_input))
