@@ -17,7 +17,6 @@ SPLUNK_SOURCETYPE = os.environ['SPLUNK_SOURCETYPE']
 SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
 SPLUNK_HOST = os.environ['SPLUNK_HOST']
 SPLUNK_JSON_FORMAT = os.environ['SPLUNK_JSON_FORMAT']
-SPLUNK_IGNORE_FIRST_LINE = os.environ['SPLUNK_IGNORE_FIRST_LINE']
 SPLUNK_CSV_TO_JSON = os.environ['SPLUNK_CSV_TO_JSON']
 SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS = os.environ['SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS']
 
@@ -136,7 +135,7 @@ def uncompressFile(path):
 
 
 # Split events into a list. Additional file extensions should be added here.
-def eventBreak(events, extension):
+def eventBreak(events, extension, ignoreFirstLine):
 
 	if (extension == "csv" or extension == "log" or SPLUNK_SOURCETYPE == "aws:s3:accesslogs"):
 		splitEvents = events.split("\n")
@@ -145,7 +144,7 @@ def eventBreak(events, extension):
 		if (len(splitEvents[-1]) == 0):
 			splitEvents = splitEvents[:-1]
 
-		if (SPLUNK_IGNORE_FIRST_LINE == "true"):
+		if (ignoreFirstLine == "true"):
 			splitEvents = splitEvents[1:]
 		
 		events = ""
@@ -331,7 +330,7 @@ def handler(event, context):
 		extension = uncompressResult.split(".")[-1]
 
 		# Split events
-		splitEvents = eventBreak(events, extension)
+		splitEvents = eventBreak(events, extension, os.environ['SPLUNK_IGNORE_FIRST_LINE'])
 
 		# Clean up first line of events
 		if (SPLUNK_SOURCETYPE == "aws:billing:cur"):
