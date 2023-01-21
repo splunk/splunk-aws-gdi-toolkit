@@ -27,7 +27,7 @@ unsupportedFileTypes = ["CloudTrail-Digest", "billing-report-Manifest"]
 delimiterMapping = {"space": " ", "tab": "	", "comma": ",", "semicolon": ";"}
 
 # Create delimiter for delimiting events
-def createDdelimiter(SPLUNK_EVENT_DELIMITER):
+def createDelimiter(SPLUNK_EVENT_DELIMITER):
 
 	if (SPLUNK_EVENT_DELIMITER in delimiterMapping.keys()):
 		return delimiterMapping[SPLUNK_EVENT_DELIMITER]
@@ -284,7 +284,7 @@ def sendEventsToFirehose(event, final):
 def handler(event, context):
 
 	# Create delineated field break
-	delimiter = createDdelimiter(os.environ['SPLUNK_EVENT_DELIMITER'])
+	delimiter = createDelimiter(os.environ['SPLUNK_EVENT_DELIMITER'])
 
 	# Loop through each SQS message
 	for message in event['Records']:
