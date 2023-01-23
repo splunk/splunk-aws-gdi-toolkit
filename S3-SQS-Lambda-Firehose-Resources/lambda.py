@@ -182,7 +182,7 @@ def cleanFirstLine(splitEvents):
 		newHeader = ""
 		
 		for splitHeader in header.split(","):
-			newHeader += str(splitHeader.split("/")[1]) + ","
+			newHeader += "/".join(splitHeader.split("/")[1:]) + ","
 		
 		splitEvents[0] = newHeader[:-1]
 
