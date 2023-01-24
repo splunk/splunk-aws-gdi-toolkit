@@ -239,7 +239,7 @@ def getTimestamp(event, delimiter):
 			return(float(epochTime))
 		# For field-delimited epoch time
 		elif (SPLUNK_TIME_FORMAT == "delineated-epoch"):
-			epochTime = float(evenIMITED(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])
+			epochTime = float(event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])
 			return(epochTime)
 		# For delineated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
 		elif (SPLUNK_TIME_FORMAT == "delineated-ISO8601"):
