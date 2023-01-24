@@ -31,6 +31,7 @@ class CloudWatchMetrics_Firehose_Resources_Tests(unittest.TestCase):
 		self.lambda_module.SPLUNK_TIME_PREFIX = "main"
 		self.lambda_module.SPLUNK_TIME_DELINEATED_FIELD = "main"
 		self.lambda_module.SPLUNK_EVENT_DELIMITER = "main"
+		self.lambda_module.SPLUNK_STRFTIME_FORMAT = "main"
 
 
 	def test_createDdelimiter(self):
@@ -230,6 +231,25 @@ class CloudWatchMetrics_Firehose_Resources_Tests(unittest.TestCase):
 
 		self.lambda_module.SPLUNK_TIME_DELINEATED_FIELD = "42"
 		self.assertEqual(round(self.lambda_module.getTimestamp('http	mock	2022-05-23T18:14:27.425920Z	app/gditoolkit-elbv2-14MI7OWL3PLKA/5d0bd31f3e9aecb8	180.129.199.58:59892	172.21.11.125:80	0.000	0.001	0.000	200	200	525	3576	"GET	http://gditoolkit-elbv2-14mi7owl3plka-1413486595.us-west-2.elb.amazonaws.com:80/icons/ubuntu-logo.png	HTTP/1.1"	"Mozilla/5.0	(Macintosh;	Intel	Mac	OS	X	10_15_7)	AppleWebKit/537.36	(KHTML,	like	Gecko)	Chrome/101.0.4951.64	Safari/537.36"	-	-	arn:aws:elasticloadbalancing:us-west-2:012345678901:targetgroup/gdiDemo/6206628e2424a61e	"Root=1-628bcf03-329f756e3e2f6eb75a563aa4"	"-"	"-"	0	2022-05-23T18:14:27.424000Z	"forward"	"-"	"-"	"172.21.11.125:80"	"200"	"-"	"-"', "	"),0), round(time.time(),0))
+
+
+	def test_getTimestamp_delineated_strftime(self):
+		
+		# Test with delineated-epoch, S3 server access logs access log, space delimited
+		self.lambda_module.SPLUNK_TIME_FORMAT = "delineated-strftime"
+		self.lambda_module.SPLUNK_TIME_DELINEATED_FIELD = "2"
+		self.lambda_module.SPLUNK_STRFTIME_FORMAT = "[%d/%b/%Y:%H:%M:%S"
+		self.assertEqual(self.lambda_module.getTimestamp('d2b1828e428fd0fc94f09e0df9e09766e034d88de30f075647bbf52fa79dd42d splunk-aws-gdi-tooklit-us-west-2-public-bucket [08/Nov/2022:13:07:00 +0000] 72.21.217.31 - XMCYE060BFAZFRK3 REST.HEAD.BUCKET - "HEAD / HTTP/1.1" 400 AuthorizationHeaderMalformed 365 - 2 - "-" "AWSConfig cfg/retry-mode/standard" - ynZYVfwfhjosIEcsZsYktTCU4lLWvxf0eNzLAFbMGNsgHE5KAi9EDMmZ0KewtKkmPvBCIDre6BY= SigV4 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader splunk-aws-gdi-tooklit-us-west-2-public-bucket.s3.amazonaws.com TLSv1.2 - -', " "), 1667912820)
+		self.assertEqual(self.lambda_module.getTimestamp('d2b1828e428fd0fc94f09e0df9e09766e034d88de30f075647bbf52fa79dd42d splunk-aws-gdi-tooklit-us-west-2-public-bucket [09/Nov/2022:06:07:16 +0000] 54.240.197.1 - S6SACNCB371CHXDR REST.HEAD.BUCKET - "HEAD / HTTP/1.1" 400 AuthorizationHeaderMalformed 365 - 3 - "-" "AWSConfig cfg/retry-mode/standard" - 5cJHnUc0zONwbsTwrwh1TV3NAuqzf/1uPAYZjPd7RKlg4dxxKSWZmvOoBkWugQbQ44rphIvlRQs= SigV4 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader splunk-aws-gdi-tooklit-us-west-2-public-bucket.s3.amazonaws.com TLSv1.2 - -', " "), 1667974036)
+		self.assertEqual(self.lambda_module.getTimestamp('d2b1828e428fd0fc94f09e0df9e09766e034d88de30f075647bbf52fa79dd42d splunk-aws-gdi-tooklit-us-west-2-public-bucket [11/Nov/2022:03:07:19 +0000] 54.239.6.87 arn:aws:sts::841154226728:assumed-role/AWSServiceRoleForConfig/AWSConfig-Describe 0N7GD2KZAM46996V REST.GET.LOCATION - "GET /?location HTTP/1.1" 200 - 137 - 20 - "-" "AWSConfig cfg/retry-mode/standard" - uQ7Sh98K4JbFhiNMudvH3h/EqiUu0c05wBnDAwtBdKBMD9d9yOZ8uRe4X5O0V19EBXbszAP3H9k= SigV4 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader splunk-aws-gdi-tooklit-us-west-2-public-bucket.s3.us-west-2.amazonaws.com TLSv1.2 - -', " "), 1668136039)
+
+		self.assertEqual(round(self.lambda_module.getTimestamp('d2b1828e428fd0fc94f09e0df9e09766e034d88de30f075647bbf52fa79dd42d splunk-aws-gdi-tooklit-us-west-2-public-bucket [11/Novz/2022:03:07:19 +0000] 54.239.6.87 arn:aws:sts::841154226728:assumed-role/AWSServiceRoleForConfig/AWSConfig-Describe 0N7GD2KZAM46996V REST.GET.LOCATION - "GET /?location HTTP/1.1" 200 - 137 - 20 - "-" "AWSConfig cfg/retry-mode/standard" - uQ7Sh98K4JbFhiNMudvH3h/EqiUu0c05wBnDAwtBdKBMD9d9yOZ8uRe4X5O0V19EBXbszAP3H9k= SigV4 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader splunk-aws-gdi-tooklit-us-west-2-public-bucket.s3.us-west-2.amazonaws.com TLSv1.2 - -', " "),0), round(time.time(),0))
+		self.assertEqual(round(self.lambda_module.getTimestamp('d2b1828e428fd0fc94f09e0df9e09766e034d88de30f075647bbf52fa79dd42d splunk-aws-gdi-tooklit-us-west-2-public-bucket [45/Nov/2022:03:07:19 +0000] 54.239.6.87 arn:aws:sts::841154226728:assumed-role/AWSServiceRoleForConfig/AWSConfig-Describe 0N7GD2KZAM46996V REST.GET.LOCATION - "GET /?location HTTP/1.1" 200 - 137 - 20 - "-" "AWSConfig cfg/retry-mode/standard" - uQ7Sh98K4JbFhiNMudvH3h/EqiUu0c05wBnDAwtBdKBMD9d9yOZ8uRe4X5O0V19EBXbszAP3H9k= SigV4 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader splunk-aws-gdi-tooklit-us-west-2-public-bucket.s3.us-west-2.amazonaws.com TLSv1.2 - -', " "),0), round(time.time(),0))
+		self.assertEqual(round(self.lambda_module.getTimestamp('d2b1828e428fd0fc94f09e0df9e09766e034d88de30f075647bbf52fa79dd42d splunk-aws-gdi-tooklit-us-west-2-public-bucket [11/Novz/2022:28:07:19 +0000] 54.239.6.87 arn:aws:sts::841154226728:assumed-role/AWSServiceRoleForConfig/AWSConfig-Describe 0N7GD2KZAM46996V REST.GET.LOCATION - "GET /?location HTTP/1.1" 200 - 137 - 20 - "-" "AWSConfig cfg/retry-mode/standard" - uQ7Sh98K4JbFhiNMudvH3h/EqiUu0c05wBnDAwtBdKBMD9d9yOZ8uRe4X5O0V19EBXbszAP3H9k= SigV4 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader splunk-aws-gdi-tooklit-us-west-2-public-bucket.s3.us-west-2.amazonaws.com TLSv1.2 - -', " "),0), round(time.time(),0))
+
+		self.lambda_module.SPLUNK_TIME_DELINEATED_FIELD = "42"
+		self.assertEqual(round(self.lambda_module.getTimestamp('d2b1828e428fd0fc94f09e0df9e09766e034d88de30f075647bbf52fa79dd42d splunk-aws-gdi-tooklit-us-west-2-public-bucket [11/Nov/2022:03:07:19 +0000] 54.239.6.87 arn:aws:sts::841154226728:assumed-role/AWSServiceRoleForConfig/AWSConfig-Describe 0N7GD2KZAM46996V REST.GET.LOCATION - "GET /?location HTTP/1.1" 200 - 137 - 20 - "-" "AWSConfig cfg/retry-mode/standard" - uQ7Sh98K4JbFhiNMudvH3h/EqiUu0c05wBnDAwtBdKBMD9d9yOZ8uRe4X5O0V19EBXbszAP3H9k= SigV4 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader splunk-aws-gdi-tooklit-us-west-2-public-bucket.s3.us-west-2.amazonaws.com TLSv1.2 - -', " "),0), round(time.time(),0))
+
 
 if __name__ == '__main__':
 	unittest.main()
