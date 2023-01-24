@@ -165,7 +165,7 @@ class CloudWatchMetrics_Firehose_Resources_Tests(unittest.TestCase):
 		self.assertEqual(round(self.lambda_module.getTimestamp("wordsthatdontmeanthings123 time3asdffdsasdffdas: 1674580913", ""), 0), round(time.time(), 0))
 		self.assertEqual(round(self.lambda_module.getTimestamp("wordsthatdontmeanthings123 badtime123: 1674580913", ""), 0), 1674580913)
 
-	def test_cgetTimestamp_delineated_epoch(self):
+	def test_getTimestamp_delineated_epoch(self):
 		
 		# Test with delineated-epoch, vpcflow log, space delimited
 		self.lambda_module.SPLUNK_TIME_FORMAT = "delineated-epoch"
@@ -173,6 +173,10 @@ class CloudWatchMetrics_Firehose_Resources_Tests(unittest.TestCase):
 
 		self.assertEqual(self.lambda_module.getTimestamp("2 841154226728 eni-0b48139ba00b9b7bb 192.73.240.132 172.21.12.101 443 60816 6 158 71263 1672790555 1672790581 ACCEPT OK", " "), 1672790555)
 		self.assertEqual(self.lambda_module.getTimestamp("2 841154226728 eni-0b48139ba00b9b7bb 3.208.215.234 172.21.12.101 443 36914 6 11 4831 1672790511 1672790581 ACCEPT OK", " "), 1672790511)
+		self.assertEqual(round(self.lambda_module.getTimestamp("2 841154226728 eni-0b48139ba00b9b7bb 3.208.215.234 172.21.12.101 443 36914 6 11 4831 1672a790511 1672790581 ACCEPT OK", ""), 0), round(time.time(), 0))
+
+		self.lambda_module.SPLUNK_TIME_DELINEATED_FIELD = "42"
+		self.assertEqual(round(self.lambda_module.getTimestamp("2 841154226728 eni-0b48139ba00b9b7bb 3.208.215.234 172.21.12.101 443 36914 6 11 4831 1672a790511 1672790581 ACCEPT OK", ""), 0), round(time.time(), 0))
 
 		# Test with delineated-epoch, vpcflow log but comma delimited
 		self.lambda_module.SPLUNK_TIME_FORMAT = "delineated-epoch"
@@ -180,6 +184,11 @@ class CloudWatchMetrics_Firehose_Resources_Tests(unittest.TestCase):
 
 		self.assertEqual(self.lambda_module.getTimestamp("2,841154226728,eni-0b48139ba00b9b7bb,192.73.240.132,172.21.12.101,443,60816,6,158,71263,1672790555,1672790581,ACCEPT,OK", ","), 1672790555)
 		self.assertEqual(self.lambda_module.getTimestamp("2,841154226728,eni-0b48139ba00b9b7bb,3.208.215.234,172.21.12.101,443,36914,6,11,4831,1672790511,1672790581,ACCEPT,OK", ","), 1672790511)
+		self.assertEqual(round(self.lambda_module.getTimestamp("2,841154226728,eni-0b48139ba00b9b7bb,3.208.215.234,172.21.12.101,443,36914,6,11,4831,1672790a511,1672790581,ACCEPT,OK", ","),0), round(time.time(),0))
+
+		self.lambda_module.SPLUNK_TIME_DELINEATED_FIELD = "42"
+		self.assertEqual(round(self.lambda_module.getTimestamp("2,841154226728,eni-0b48139ba00b9b7bb,3.208.215.234,172.21.12.101,443,36914,6,11,4831,1672790a511,1672790581,ACCEPT,OK", ","),0), round(time.time(),0))
+
 
 		# Test with delineated-epoch, vpcflow log but tab delimited and with the end time of the stream
 		self.lambda_module.SPLUNK_TIME_FORMAT = "delineated-epoch"
@@ -187,6 +196,11 @@ class CloudWatchMetrics_Firehose_Resources_Tests(unittest.TestCase):
 
 		self.assertEqual(self.lambda_module.getTimestamp("2	841154226728	eni-0b48139ba00b9b7bb	192.73.240.132	172.21.12.101	443	60816	6	158	71263	1672790555	1672790581	ACCEPT	OK", "	"), 1672790581)
 		self.assertEqual(self.lambda_module.getTimestamp("2	841154226728	eni-0b48139ba00b9b7bb	3.208.215.234	172.21.12.101	443	36914	6	11	4831	1672790511	1672790545	ACCEPT	OK", "	"), 1672790545)
+		self.assertEqual(round(self.lambda_module.getTimestamp("2	841154226728	eni-0b48139ba00b9b7bb	3.208.215.234	172.21.12.101	443	36914	6	11	4831	1672790511	167a2790545	ACCEPT	OK", ","),0), round(time.time(),0))
+
+		self.lambda_module.SPLUNK_TIME_DELINEATED_FIELD = "42"
+		self.assertEqual(round(self.lambda_module.getTimestamp("2	841154226728	eni-0b48139ba00b9b7bb	3.208.215.234	172.21.12.101	443	36914	6	11	4831	1672790511	167a2790545	ACCEPT	OK", ","),0), round(time.time(),0))
+
 
 if __name__ == '__main__':
 	unittest.main()
