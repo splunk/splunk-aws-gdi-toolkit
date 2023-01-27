@@ -3,8 +3,11 @@ import unittest, os, importlib, time, moto, boto3, glob, shutil
 
 class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 
+	mock_iam = moto.mock_iam()
 	mock_s3 = moto.mock_s3()
-	bucket_name = "s3-sqs-lambda-firehose-bucket"
+	mock_firehose = moto.mock_firehose()
+	bucket_name = "moto-resource-bucket"
+	bucket_name_firehose = "sqs-s3-firehose-bucket"
 	os.environ["AWS_ACCESS_KEY_ID"] = "testing"
 	os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
 	os.environ["AWS_SECURITY_TOKEN"] = "testing"
@@ -13,8 +16,8 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 
 	def setUp(self):
 		# Set environment variables
-		os.environ['firehoseDeliverySreamName'] = "main"
-		os.environ['AWS_REGION'] = "main"
+		os.environ['firehoseDeliverySreamName'] = "kdf-test"
+		os.environ['AWS_REGION'] = "us-east-1"
 		os.environ['SPLUNK_INDEX'] = "main"
 		os.environ['SPLUNK_TIME_PREFIX'] = "main"
 		os.environ['SPLUNK_EVENT_DELIMITER'] = "main"
@@ -43,17 +46,31 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		self.lambda_module.SPLUNK_EVENT_DELIMITER = "main"
 		self.lambda_module.SPLUNK_STRFTIME_FORMAT = "main"
 
+		# Set up mock mock_iam
+		self.mock_iam.start()
+		iamClient = boto3.client('iam')
+		createPolicyResult = iamClient.create_policy(PolicyName="moto-testing-allow-all", PolicyDocument='{"Version": "2012-10-17","Statement": [{"Effect": "Allow","Action": "*","Resource": "*"}]}')
+		createRoleResult = iamClient.create_role(RoleName="moto-testing-allow-all", AssumeRolePolicyDocument=str({"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"firehose.amazonaws.com"},"Action":"sts:AssumeRole"}]}))
+		iamClient.attach_role_policy(RoleName="moto-testing-allow-all", PolicyArn=dict(createPolicyResult)['Policy']['Arn'])
+
 		# Set up mock_s3
 		self.mock_s3.start()
 		s3 = boto3.resource("s3")
-		bucket = s3.Bucket(self.bucket_name)
-		bucket.create()
+		resourceBucket = s3.Bucket(self.bucket_name)
+		resourceBucket.create()
+		firehoseBucket = s3.Bucket(self.bucket_name_firehose)
+		firehoseBucket.create()
 
 		# Copy files to mock_s3 bucket
 		s3Client = boto3.client('s3')
 		testFiles = ["testFile1.log", "testdir/123/testFile2.log"]
 		for testFile in testFiles:
 			s3Client.upload_file("test-artifacts/" + str(testFile), self.bucket_name, str(testFile))
+
+		# Set up mock_firehose
+		self.mock_firehose.start()
+		firehose = boto3.client("firehose")
+		firehose.create_delivery_stream(DeliveryStreamName="kdf-test", DeliveryStreamType="DirectPut", S3DestinationConfiguration={"RoleARN":dict(createRoleResult)['Role']['Arn'], "BucketARN": "arn:aws:s3:::" + self.bucket_name_firehose, "BufferingHints": {"SizeInMBs": 1, "IntervalInSeconds": 60}, "CompressionFormat": "UNCOMPRESSED" })
 
 
 	def test_createDdelimiter(self):
@@ -289,7 +306,7 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 
 		for testFile in testFiles:
 			# Validate return message
-			self.assertEqual(self.lambda_module.downloadS3Object("s3-sqs-lambda-firehose-bucket", testFile), "/tmp/" + testFile.split("/")[-1])
+			self.assertEqual(self.lambda_module.downloadS3Object("moto-resource-bucket", testFile), "/tmp/" + testFile.split("/")[-1])
 
 			# Validate that file was retrieved correctly and the contents match the test file
 			originalFile = ""
@@ -303,9 +320,9 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 			self.assertEqual(originalFile, downloadedFile)
 
 		# Test with invalid files that do not exist
-		self.assertEqual(self.lambda_module.downloadS3Object("s3-sqs-lambda-firehose-bucket-non-existent", "testFile1.log"), "Unable to download file s3://s3-sqs-lambda-firehose-bucket-non-existent/testFile1.log")
-		self.assertEqual(self.lambda_module.downloadS3Object("s3-sqs-lambda-firehose-bucket", "non-existent-file.txt"), "Unable to download file s3://s3-sqs-lambda-firehose-bucket/non-existent-file.txt")
-		self.assertEqual(self.lambda_module.downloadS3Object("s3-sqs-lambda-firehose-bucket-non-existent", "non-existent-file.txt"), "Unable to download file s3://s3-sqs-lambda-firehose-bucket-non-existent/non-existent-file.txt")
+		self.assertEqual(self.lambda_module.downloadS3Object("moto-resource-bucket-non-existent", "testFile1.log"), "Unable to download file s3://moto-resource-bucket-non-existent/testFile1.log")
+		self.assertEqual(self.lambda_module.downloadS3Object("moto-resource-bucket", "non-existent-file.txt"), "Unable to download file s3://moto-resource-bucket/non-existent-file.txt")
+		self.assertEqual(self.lambda_module.downloadS3Object("moto-resource-bucket-non-existent", "non-existent-file.txt"), "Unable to download file s3://moto-resource-bucket-non-existent/non-existent-file.txt")
 
 
 	def test_uncompressFile_gz(self):
@@ -333,10 +350,70 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 			self.assertEqual(originalFile, uncompressedFile)
 
 
+	def test_sendEventsToFirehose(self):
+
+		timestamp = str(round(time.time(), 1))
+
+		s3Client = boto3.client('s3')
+		# Check to make sure no files have been delivered yet
+		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 0)
+
+		# Send a single event
+		self.assertEqual(self.lambda_module.sendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', False), "Sent to Firehose")
+
+		# Verify that there are still 0 files in the bucket
+		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 0)
+
+		# Send another 199 files to the bucket
+		for i in range(199):
+			self.lambda_module.sendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', False)
+
+		# Verify that there are still 0 files in the bucket
+		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 0)
+
+		# Send 1 more file to the bucket, should trigger Firehose to send an object to S3
+		self.lambda_module.sendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', False)
+		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 1)
+		
+		# Verify the contents of the file
+		firehoseKey = str(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['Contents'][0]['Key'])
+		s3Client.download_file(self.bucket_name_firehose, firehoseKey, "/tmp/file1.json")
+
+		file1 = ""
+		with open("/tmp/file1.json", 'r') as file:
+			file1 = file.read()
+
+		# Verify there are 201 events in the file
+		self.assertEqual(len(file1.split("}{")), 201)
+
+		# Verify contents of one of the records
+		self.assertEqual((str("{" + file1.split("}{")[42] + "}")), '{ "time": ' +  timestamp + ', "host": "moto-test-host", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}')
+
+		# Delete file in S3
+		s3Client.delete_object(Bucket=self.bucket_name_firehose, Key=firehoseKey)
+		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 0)
+
+		# Send one, final event to Firehose, then verify it made it to S3 and it's file contents
+		timestamp = str(round(time.time(), 2))
+		self.assertEqual(self.lambda_module.sendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host-2", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', True), "Sent to Firehose")
+		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 1)
+		firehoseKey = str(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['Contents'][0]['Key'])
+		s3Client.download_file(self.bucket_name_firehose, firehoseKey, "/tmp/file2.json")
+
+		file2 = ""
+		with open("/tmp/file2.json", 'r') as file:
+			file2 = file.read()
+
+		self.assertEqual(str(file2), '{ "time": ' +  timestamp + ', "host": "moto-test-host-2", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}')
+
+
+
 	def tearDown(self):
 
 		# Stop moto
+		self.mock_iam.stop()
 		self.mock_s3.stop()
+		self.mock_firehose.stop()
 
 		# Delete all files in tmp
 		files = glob.glob('/tmp/*')
