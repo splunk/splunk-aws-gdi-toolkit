@@ -1,4 +1,4 @@
-import unittest, os, importlib, time, moto, boto3, glob
+import unittest, os, importlib, time, moto, boto3, glob, shutil
 
 
 class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
@@ -295,6 +295,30 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		self.assertEqual(self.lambda_module.downloadS3Object("s3-sqs-lambda-firehose-bucket-non-existent", "testFile1.log"), "Unable to download file s3://s3-sqs-lambda-firehose-bucket-non-existent/testFile1.log")
 		self.assertEqual(self.lambda_module.downloadS3Object("s3-sqs-lambda-firehose-bucket", "non-existent-file.txt"), "Unable to download file s3://s3-sqs-lambda-firehose-bucket/non-existent-file.txt")
 		self.assertEqual(self.lambda_module.downloadS3Object("s3-sqs-lambda-firehose-bucket-non-existent", "non-existent-file.txt"), "Unable to download file s3://s3-sqs-lambda-firehose-bucket-non-existent/non-existent-file.txt")
+
+	def test_uncompressFile_gz(self):
+		
+		# Test with files that do exist
+		testFiles = ["testFile1.log.gz", "testdir/123/testFile2.log.gz"]
+
+		for testFile in testFiles:
+
+			# Copy files to tmp dir
+			shutil.copy("test-artifacts/" + testFile, "/tmp/" + testFile.split("/")[-1])
+
+			# Validate return message
+			self.assertEqual(self.lambda_module.uncompressFile("/tmp/" + testFile.split("/")[-1]), "/tmp/" + (testFile.split("/")[-1])[:-3])
+
+			# Validate that file was retrieved correctly and the contents match the test file
+			originalFile = ""
+			with open("test-artifacts/" + testFile[:-3], 'r') as file:
+				originalFile = file.read()
+
+			uncompressedFile = ""
+			with open("/tmp/" + (testFile.split("/")[-1])[:-3], 'r') as file:
+				uncompressedFile = file.read()
+
+			self.assertEqual(originalFile, uncompressedFile)
 
 
 	def tearDown(self):
