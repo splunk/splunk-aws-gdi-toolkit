@@ -18,6 +18,7 @@ SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
 SPLUNK_HOST = os.environ['SPLUNK_HOST']
 SPLUNK_JSON_FORMAT = os.environ['SPLUNK_JSON_FORMAT']
 SPLUNK_CSV_TO_JSON = os.environ['SPLUNK_CSV_TO_JSON']
+SPLUNK_IGNORE_FIRST_LINE = os.environ['SPLUNK_IGNORE_FIRST_LINE']
 SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS = os.environ['SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS']
 
 # Lambda things
@@ -283,7 +284,7 @@ def sendEventsToFirehose(event, final):
 def handler(event, context):
 
 	# Create delineated field break
-	delimiter = createDelimiter(os.environ['SPLUNK_EVENT_DELIMITER'])
+	delimiter = createDelimiter(SPLUNK_EVENT_DELIMITER)
 
 	# Loop through each SQS message
 	for message in event['Records']:
@@ -330,7 +331,7 @@ def handler(event, context):
 		extension = uncompressResult.split(".")[-1]
 
 		# Split events
-		splitEvents = eventBreak(events, extension, os.environ['SPLUNK_IGNORE_FIRST_LINE'])
+		splitEvents = eventBreak(events, extension, SPLUNK_IGNORE_FIRST_LINE)
 
 		# Clean up first line of events
 		if (SPLUNK_SOURCETYPE == "aws:billing:cur"):
