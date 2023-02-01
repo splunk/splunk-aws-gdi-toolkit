@@ -5,12 +5,6 @@ SPLUNK_SOURCETYPE = os.environ['SPLUNK_SOURCETYPE']
 SPLUNK_HOST = os.environ['SPLUNK_HOST']
 SPLUNK_INDEX = os.environ['SPLUNK_INDEX']
 
-# Parse message and return event-formatted record
-def parseEventAsEvent(message):
-
-	# Return Splunk event
-	return '{ "time": ' +  str(jsonMessage['timestamp']) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "aws:cloudwatch", "index": "' + SPLUNK_INDEX + '", "event": ' + json.dumps(splunkEvent) + ' }'
-
 # Default Lambda handler
 def handler(event, context):
 

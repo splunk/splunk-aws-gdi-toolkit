@@ -17,8 +17,8 @@ SPLUNK_SOURCETYPE = os.environ['SPLUNK_SOURCETYPE']
 SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
 SPLUNK_HOST = os.environ['SPLUNK_HOST']
 SPLUNK_JSON_FORMAT = os.environ['SPLUNK_JSON_FORMAT']
-SPLUNK_IGNORE_FIRST_LINE = os.environ['SPLUNK_IGNORE_FIRST_LINE']
 SPLUNK_CSV_TO_JSON = os.environ['SPLUNK_CSV_TO_JSON']
+SPLUNK_IGNORE_FIRST_LINE = os.environ['SPLUNK_IGNORE_FIRST_LINE']
 SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS = os.environ['SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS']
 
 # Lambda things
@@ -27,7 +27,7 @@ unsupportedFileTypes = ["CloudTrail-Digest", "billing-report-Manifest"]
 delimiterMapping = {"space": " ", "tab": "	", "comma": ",", "semicolon": ";"}
 
 # Create delimiter for delimiting events
-def createDdelimiter():
+def createDelimiter(SPLUNK_EVENT_DELIMITER):
 
 	if (SPLUNK_EVENT_DELIMITER in delimiterMapping.keys()):
 		return delimiterMapping[SPLUNK_EVENT_DELIMITER]
@@ -136,7 +136,7 @@ def uncompressFile(path):
 
 
 # Split events into a list. Additional file extensions should be added here.
-def eventBreak(events, extension):
+def eventBreak(events, extension, ignoreFirstLine):
 
 	if (extension == "csv" or extension == "log" or SPLUNK_SOURCETYPE == "aws:s3:accesslogs"):
 		splitEvents = events.split("\n")
@@ -145,7 +145,7 @@ def eventBreak(events, extension):
 		if (len(splitEvents[-1]) == 0):
 			splitEvents = splitEvents[:-1]
 
-		if (SPLUNK_IGNORE_FIRST_LINE == "true"):
+		if (ignoreFirstLine == "true"):
 			splitEvents = splitEvents[1:]
 		
 		events = ""
@@ -183,7 +183,7 @@ def cleanFirstLine(splitEvents):
 		newHeader = ""
 		
 		for splitHeader in header.split(","):
-			newHeader += str(splitHeader.split("/")[1]) + ","
+			newHeader += "/".join(splitHeader.split("/")[1:]) + ","
 		
 		splitEvents[0] = newHeader[:-1]
 
@@ -240,7 +240,7 @@ def getTimestamp(event, delimiter):
 			return(float(epochTime))
 		# For field-delimited epoch time
 		elif (SPLUNK_TIME_FORMAT == "delineated-epoch"):
-			epochTime = float(evenIMITED(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])
+			epochTime = float(event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])
 			return(epochTime)
 		# For delineated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
 		elif (SPLUNK_TIME_FORMAT == "delineated-ISO8601"):
@@ -284,7 +284,7 @@ def sendEventsToFirehose(event, final):
 def handler(event, context):
 
 	# Create delineated field break
-	delimiter = createDdelimiter()
+	delimiter = createDelimiter(SPLUNK_EVENT_DELIMITER)
 
 	# Loop through each SQS message
 	for message in event['Records']:
@@ -331,7 +331,7 @@ def handler(event, context):
 		extension = uncompressResult.split(".")[-1]
 
 		# Split events
-		splitEvents = eventBreak(events, extension)
+		splitEvents = eventBreak(events, extension, SPLUNK_IGNORE_FIRST_LINE)
 
 		# Clean up first line of events
 		if (SPLUNK_SOURCETYPE == "aws:billing:cur"):
