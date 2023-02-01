@@ -43,9 +43,23 @@
         - cloudwatchmetrics-firehose-resources-lambda
         - cloudwatchlogs-firehose-resources-lambda
 
-    - name: Upload zipped files to S3
+    - name: Upload zipped files to S3 us-west-2
       aws_s3:
         bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
+        object: "{{ item }}"
+        src: "deploymentStage/{{ item }}"
+        mode: put
+        overwrite: always
+        encrypt: true
+        permission: public-read
+      with_items:
+        - s3-sqs-lambda-firehose-resources-lambda.zip
+        - cloudwatchmetrics-firehose-resources-lambda.zip
+        - cloudwatchlogs-firehose-resources-lambda.zip
+
+    - name: Upload zipped files to S3 us-east-1
+      aws_s3:
+        bucket: splunk-aws-gdi-tooklit-us-east-1-public-bucket
         object: "{{ item }}"
         src: "deploymentStage/{{ item }}"
         mode: put
