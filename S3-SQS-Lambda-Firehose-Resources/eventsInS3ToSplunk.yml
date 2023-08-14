@@ -468,8 +468,6 @@ Resources:
             Service: logging.s3.amazonaws.com
           Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
           Condition:
-            ArnLike:
-              aws:SourceArn: "arn:aws:s3:::splunk-aws-gdi-tooklit-us-west-2-public-bucket"
             StringEquals:
               aws:SourceAccount: !Ref AWS::AccountId
 
@@ -645,7 +643,7 @@ Resources:
       Architectures:
         - arm64
       Code:
-        S3Bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
+        S3Bucket: !Sub "splunk-aws-gdi-tooklit-${AWS::Region}-public-bucket"
         S3Key: s3-sqs-lambda-firehose-resources-lambda.zip
       Description: Lambda function for processing SQS messages that contain events, then sending them to firehose to be forwarded to Splunk.
       Environment:

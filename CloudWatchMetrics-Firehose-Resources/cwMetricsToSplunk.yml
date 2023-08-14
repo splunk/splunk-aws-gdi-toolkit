@@ -193,7 +193,7 @@ Resources:
       Architectures:
         - arm64
       Code:
-        S3Bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
+        S3Bucket: !Sub "splunk-aws-gdi-tooklit-${AWS::Region}-public-bucket"
         S3Key: cloudwatchmetrics-firehose-resources-lambda.zip
       Description: Lambda function for processing Firehose messages into standard CloudWatch Metrics format for Splunk.
       Environment:
@@ -226,7 +226,7 @@ Resources:
           Action:
           - firehose:PutRecord
           - firehose:PutRecordBatch
-          Resource: !Sub "arn:aws:firehose:us-west-2:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
+          Resource: !Sub "arn:aws:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
         - Effect: Allow
           Action:
           - logs:CreateLogStream

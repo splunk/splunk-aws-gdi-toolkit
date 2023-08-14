@@ -245,7 +245,7 @@ Resources:
       Architectures:
         - arm64
       Code:
-        S3Bucket: splunk-aws-gdi-tooklit-us-west-2-public-bucket
+        S3Bucket: !Sub "splunk-aws-gdi-tooklit-${AWS::Region}-public-bucket"
         S3Key: cloudwatchlogs-firehose-resources-lambda.zip
       Description: Lambda function for processing Firehose messages into standard event format for Splunk.
       Environment:
