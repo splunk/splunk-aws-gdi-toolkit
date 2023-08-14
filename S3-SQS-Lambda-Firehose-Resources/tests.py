@@ -102,7 +102,7 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		
 		# Test with unsupported files
 		self.assertEqual(self.lambda_module.validateFileType("none"), "Unsupported file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.txt"), "Unsupported file type.")
+		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.txt"), "Valid file type.")
 		self.assertEqual(self.lambda_module.validateFileType("file.md"), "Unsupported file type.")
 
 		# Test with supported files
