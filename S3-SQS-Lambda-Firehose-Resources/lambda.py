@@ -269,11 +269,19 @@ def sendEventsToFirehose(event, final):
 
 		# If there are more than 200 records or 2MB in the sending queue, send the event to Splunk and clear the queue
 		if (len(recordBatch) > 200 or (sys.getsizeof(recordBatch) > 2000000 )):
-			firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
+			response = firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
 			recordBatch.clear()
+
+			if (response['FailedPutCount'] > 0):
+				return("Unable to send file to Firehose.  First error message: " + response['RequestResponses'][0]['ErrorMessage'])
+
 		elif (final == True):
-			firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
+			response = firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
 			recordBatch.clear()
+
+			if (response['FailedPutCount'] > 0):
+				return("Unable to send file to Firehose.  First error message: " + response['RequestResponses'][0]['ErrorMessage'])
+
 	except:
 		return("Unable to send file to Firehose")
 
@@ -359,8 +367,8 @@ def handler(event, context):
 			result = sendEventsToFirehose(str(splunkEvent), False)
 
 			# Error logging
-			if (result == "Unable to send to Firehose"):
-				print("Unable to send to Firehose: " + firehoseDeliverySreamName)
+			if (result.startswith("Unable to send file to Firehose")):
+				print(result + " Firehose name: " + firehoseDeliverySreamName + ". File path: s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
 
 		# Send the remaining events to Firehose, effectively clearing the buffered events in recordBatch
 		sendEventsToFirehose("", True)
