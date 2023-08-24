@@ -387,6 +387,27 @@ Resources:
       Threshold: 1
       Unit: Count
 
+  firehoseThrottlingAlarm:
+    Condition: enableAlerting
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      AlarmActions: 
+        - !Ref monitoringSNSTopic
+      AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose is throttling events because of quota limits."
+      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-throttling-alarm"
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DeliveryStreamName
+        Value: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose"
+      EvaluationPeriods: 1
+      MetricName: ThrottledRecords
+      Namespace: AWS/Firehose
+      Period: 60
+      Statistic: Maximum
+      Threshold: 0
+      Unit: Count
+
 Outputs:
   firehoseArn:
     Value: !GetAtt firehose.Arn
