@@ -1,0 +1,64 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create VPC Flow Logging infrastructure to Kinesis Data Firehose.  This should be deployed once for each VPC, ENI, or subnet you want to capture VPC Flow Logs from.
+
+
+Parameters:
+  service:
+    Type: String
+    Description: service name
+    Default: splunk-aws-gdi-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
+    Type: String
+
+  kdfArn:
+    Description: ARN of the Kinesis Data Firehose the VPC Flow Logs will be sent to
+    Type: String
+
+  vpcFlowLogResourceId:
+    Description: The ID of the subnet, network interface, or VPC for which you want to create a flow log. Taken straight from https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-flowlog.html
+    Type: String
+
+  vpcFlowLogResourceType:
+    Description: The type of resource for which to create the flow log. Select NetworkInterface if you specified an ENI for vpcFlowLogResourceId, "Subnet" if you specified a subnet ID for vpcFlowLogResourceId, or "VPC" if you specified a VPC ID for vpcFlowLogResourceId" 
+    Type: String
+    Default: VPC
+    AllowedValues:
+      - NetworkInterface
+      - Subnet
+      - VPC
+
+  vpcFlowLogTrafficType:
+    Description: Type of traffic you want to log.
+    Type: String
+    Default: ALL
+    AllowedValues:
+      - ACCEPT
+      - REJECT
+      - ALL
+
+
+Resources:
+  vpcFlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      LogDestination: !Ref kdfArn
+      LogDestinationType: kinesis-data-firehose
+      ResourceId: !Ref vpcFlowLogResourceId
+      ResourceType: !Ref vpcFlowLogResourceType
+      TrafficType: !Ref vpcFlowLogTrafficType
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
