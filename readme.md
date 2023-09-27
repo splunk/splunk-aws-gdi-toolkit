@@ -4,4 +4,4 @@ This repo is for individuals and organizations looking to get better visibility,
 
 PRs are open, and feel free to reach out to me over the [Splunk Usergroups Slack](https://docs.splunk.com/Documentation/Community/current/community/Chat) if you have questions, comments, or concerns!
 
-Documentation for how to deploy the toolkit, design decisions, diagrams, and FAQs can be found in the [wiki](https://github.com/pdreeves/splunk-aws-gdi-toolkit/wiki).
+Documentation for how to deploy the toolkit, design decisions, diagrams, and FAQs can be found in the [wiki](https://github.com/splunk/splunk-aws-gdi-toolkit/wiki).
