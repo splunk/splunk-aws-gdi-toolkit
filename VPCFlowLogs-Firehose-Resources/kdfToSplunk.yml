@@ -156,48 +156,6 @@ Resources:
         - Endpoint: !Ref cloudWatchAlertEmail
           Protocol: email
 
-  lambdaInvocationAlarm:
-    Condition: enableAlerting
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      ActionsEnabled: True
-      AlarmActions: 
-        - !Ref monitoringSNSTopic
-      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-vpcflow-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
-      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-vpcflow-lambda-error-invocations"
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Dimensions:
-      - Name: FunctionName
-        Value: !Sub "${AWS::AccountId}-${AWS::Region}-vpcflow-lambda-function"
-      EvaluationPeriods: 1
-      MetricName: Errors
-      Namespace: AWS/Lambda
-      Period: 60
-      Statistic: Sum
-      Threshold: 1
-      Unit: Count
-
-  lambdaDurationAlarm:
-    Condition: enableAlerting
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      ActionsEnabled: True
-      AlarmActions: 
-        - !Ref monitoringSNSTopic
-      AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-vpcflow-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
-      AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-vpcflow-lambda-error-duration"
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Dimensions:
-      - Name: FunctionName
-        Value: !Sub "${AWS::AccountId}-${AWS::Region}-vpcflow-lambda-function"
-      EvaluationPeriods: 1
-      MetricName: Duration
-      Namespace: AWS/Lambda
-      Period: 60
-      Statistic: Maximum
-      Threshold: 300000
-      Unit: Milliseconds
-
   firehoseDeliveryAlarm:
     Condition: enableAlerting
     Type: AWS::CloudWatch::Alarm
