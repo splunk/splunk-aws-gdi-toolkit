@@ -152,7 +152,7 @@ def eventBreak(events, extension, ignoreFirstLine):
 
 		return splitEvents
 
-	elif (extension == "json" or extension == "txt"):
+	elif (extension == "json" or extension == "txt" or extension=="jsonl"):
 		if (SPLUNK_JSON_FORMAT == "eventsInRecords"):
 			splitEvents = json.loads(events)["Records"]
 			events = ""
