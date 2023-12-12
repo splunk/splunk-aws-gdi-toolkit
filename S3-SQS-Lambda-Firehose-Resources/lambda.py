@@ -22,7 +22,7 @@ SPLUNK_IGNORE_FIRST_LINE = os.environ['SPLUNK_IGNORE_FIRST_LINE']
 SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS = os.environ['SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS']
 
 # Lambda things
-validFileTypes = ["gz", "gzip", "json", "csv", "log", "parquet", "txt"]
+validFileTypes = ["gz", "gzip", "json", "csv", "log", "parquet", "txt", "ndjson", "jsonl"]
 unsupportedFileTypes = ["CloudTrail-Digest", "billing-report-Manifest"]
 delimiterMapping = {"space": " ", "tab": "	", "comma": ",", "semicolon": ";"}
 
