@@ -1045,9 +1045,9 @@ Resources:
       Handler: index.handler
       MemorySize: !Ref lambdaProcessorMemorySize
       Layers:
-        - !Sub "arn:aws:lambda:${AWS::Region}:336392948345:layer:AWSSDKPandas-Python39-Arm64:2"
+        - !Sub "arn:aws:lambda:${AWS::Region}:336392948345:layer:AWSSDKPandas-Python312-Arm64:3"
       Role: !GetAtt lambdaIAMRole.Arn
-      Runtime: python3.9
+      Runtime: python3.12
       Tags:
       - Key: service
         Value: !Ref service
