@@ -3,9 +3,10 @@ import unittest, os, importlib, time, moto, boto3, glob, shutil
 
 class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 
-	mock_iam = moto.mock_iam()
-	mock_s3 = moto.mock_s3()
-	mock_firehose = moto.mock_firehose()
+	# mock_iam = moto.mock_iam()
+	# mock_s3 = moto.mock_s3()
+	# mock_firehose = moto.mock_firehose()
+	mock = moto.mock_aws()
 	bucket_name = "moto-resource-bucket"
 	bucket_name_firehose = "sqs-s3-firehose-bucket"
 	os.environ["AWS_ACCESS_KEY_ID"] = "testing"
@@ -33,6 +34,9 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		os.environ['SPLUNK_CSV_TO_JSON'] = "main"
 		os.environ['SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS'] = "main"	
 
+		# Start moto
+		self.mock.start()
+
 		# Import function to test
 		self.lambda_module = importlib.import_module('lambda')
 
@@ -48,14 +52,12 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		self.lambda_module.SPLUNK_STRFTIME_FORMAT = "main"
 
 		# Set up mock mock_iam
-		self.mock_iam.start()
 		iamClient = boto3.client('iam')
 		createPolicyResult = iamClient.create_policy(PolicyName="moto-testing-allow-all", PolicyDocument='{"Version": "2012-10-17","Statement": [{"Effect": "Allow","Action": "*","Resource": "*"}]}')
 		createRoleResult = iamClient.create_role(RoleName="moto-testing-allow-all", AssumeRolePolicyDocument=str({"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"firehose.amazonaws.com"},"Action":"sts:AssumeRole"}]}))
 		iamClient.attach_role_policy(RoleName="moto-testing-allow-all", PolicyArn=dict(createPolicyResult)['Policy']['Arn'])
 
 		# Set up mock_s3
-		self.mock_s3.start()
 		s3 = boto3.resource("s3")
 		resourceBucket = s3.Bucket(self.bucket_name)
 		resourceBucket.create()
@@ -69,7 +71,6 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 			s3Client.upload_file("test-fixtures/" + str(testFile), self.bucket_name, str(testFile))
 
 		# Set up mock_firehose
-		self.mock_firehose.start()
 		firehose = boto3.client("firehose")
 		firehose.create_delivery_stream(DeliveryStreamName="kdf-test", DeliveryStreamType="DirectPut", S3DestinationConfiguration={"RoleARN":dict(createRoleResult)['Role']['Arn'], "BucketARN": "arn:aws:s3:::" + self.bucket_name_firehose, "BufferingHints": {"SizeInMBs": 1, "IntervalInSeconds": 60}, "CompressionFormat": "UNCOMPRESSED" })
 
@@ -561,9 +562,7 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 	def tearDown(self):
 
 		# Stop moto
-		self.mock_iam.stop()
-		self.mock_s3.stop()
-		self.mock_firehose.stop()
+		self.mock.stop()
 
 		# Delete all files in tmp
 		files = glob.glob('/tmp/*')
