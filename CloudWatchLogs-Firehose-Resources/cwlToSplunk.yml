@@ -296,7 +296,7 @@ Resources:
       Handler: index.handler
       MemorySize: 512
       Role: !GetAtt lambdaIAMRole.Arn
-      Runtime: python3.9
+      Runtime: python3.12
       Tags:
       - Key: service
         Value: !Ref service
