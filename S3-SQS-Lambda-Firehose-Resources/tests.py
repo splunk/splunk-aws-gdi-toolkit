@@ -116,6 +116,7 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.csv"), True)
 		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log"), True)
 		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.parquet"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("AWSLogs/1234/CloudTrail-Digest/eu-west-1/2024/02/16/1234-Digest_eu-west-1_splunk-aws-gdi-tooklit-cloudtrail_us-east-1_20240216T213740Z.json.gz"), False)
 
 
 	def test_eventBreak(self):

@@ -59,8 +59,9 @@ def retrieveObjectInfo(record):
 def isValidFileType(key):
 
 	# Check for invalid file types
-	if key in unsupportedFileTypes: 
-		return False
+	for unsupportedFileType in unsupportedFileTypes:
+		if (unsupportedFileType in key):
+			return False
 
 	# Define file extension
 	extension = key.split(".")[-1]
