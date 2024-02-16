@@ -309,8 +309,8 @@ def handler(event, context):
 			continue
 
 		# Validate file types
-		isValidFileType = isValidFileType(objectInfo["key"])
-		if not isValidFileType:
+		isValidFileTypeResult = isValidFileType(objectInfo["key"])
+		if not isValidFileTypeResult:
 			print("Unsupported file type: s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
 			continue
 		
