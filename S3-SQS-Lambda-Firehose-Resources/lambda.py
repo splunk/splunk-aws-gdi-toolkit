@@ -59,20 +59,18 @@ def retrieveObjectInfo(record):
 def validateFileType(key):
 
 	# Check for invalid file types
-	for unsupportedFileType in unsupportedFileTypes:
-		if (unsupportedFileType in key):
-			return("Unsupported file type.")
+	if key in unsupportedFileTypes: 
+		return("Unsupported file type.")
 
 	# Define file extension
 	extension = key.split(".")[-1]
 
 	# Check for valid file types
-	for validFileType in validFileTypes:
-		if (extension in validFileType):
-			return("Valid file type.")
+	if extension in validFileTypes:
+		return("Valid file type.")
 
 	# Check for aws:s3:accesslogs
-	if (SPLUNK_SOURCETYPE == "aws:s3:accesslogs" and len(key.split(".")) == 1):
+	if SPLUNK_SOURCETYPE == "aws:s3:accesslogs" and len(key.split(".")) == 1:
 		return("Valid file type.")
 
 	return("Unsupported file type.")
