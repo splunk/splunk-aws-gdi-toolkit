@@ -56,24 +56,24 @@ def retrieveObjectInfo(record):
 
 
 # Check to see if the file is a valid file type
-def validateFileType(key):
+def isValidFileType(key):
 
 	# Check for invalid file types
 	if key in unsupportedFileTypes: 
-		return("Unsupported file type.")
+		return False
 
 	# Define file extension
 	extension = key.split(".")[-1]
 
 	# Check for valid file types
 	if extension in validFileTypes:
-		return("Valid file type.")
+		return True
 
 	# Check for aws:s3:accesslogs
 	if SPLUNK_SOURCETYPE == "aws:s3:accesslogs" and len(key.split(".")) == 1:
-		return("Valid file type.")
+		return True
 
-	return("Unsupported file type.")
+	return False
 
 
 # Retrieve the S3 object, and return the new path
@@ -304,8 +304,8 @@ def handler(event, context):
 			continue
 
 		# Validate file types
-		validateFileTypeResult = validateFileType(objectInfo["key"])
-		if ("Unsupported file type." in validateFileTypeResult):
+		isValidateFileTypeResult = isValidFileType(objectInfo["key"])
+		if not isValidateFileTypeResult:
 			print("Unsupported file type: s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
 			continue
 		

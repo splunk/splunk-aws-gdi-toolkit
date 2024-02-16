@@ -99,23 +99,23 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		self.assertEqual(self.lambda_module.retrieveObjectInfo({'messageId': '0ed4e10e-7fe3-41c8-ba7e-59b0c90826f3', 'receiptHandle': 'AQEBrbGkhIBIrdBxqc9HfoDkMkaNz7/'}), "SQS message did not contain S3 file information.  Record: {'messageId': '0ed4e10e-7fe3-41c8-ba7e-59b0c90826f3', 'receiptHandle': 'AQEBrbGkhIBIrdBxqc9HfoDkMkaNz7/'}")
 
 
-	def test_validateFileType(self):
+	def test_isValidFileType(self):
 		
 		# Test with unsupported files
-		self.assertEqual(self.lambda_module.validateFileType("none"), "Unsupported file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.txt"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("file.md"), "Unsupported file type.")
+		self.assertEqual(self.lambda_module.isValidFileType("none"), False)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.txt"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("file.md"), False)
 
 		# Test with supported files
-		self.assertEqual(self.lambda_module.validateFileType("AWSLogs/841154226728/vpcflowlogs/us-west-2/2023/01/21/841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gz"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gz"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.gz"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gzip"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.gzip"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.json"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.csv"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.parquet"), "Valid file type.")
+		self.assertEqual(self.lambda_module.isValidFileType("AWSLogs/841154226728/vpcflowlogs/us-west-2/2023/01/21/841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gz"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gz"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.gz"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gzip"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.gzip"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.json"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.csv"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.parquet"), True)
 
 
 	def test_eventBreak(self):
