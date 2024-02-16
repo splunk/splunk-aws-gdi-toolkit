@@ -224,35 +224,40 @@ def csvToJSON(splitEvents):
 def getTimestamp(event, delimiter):
 
 	try:
-		# For ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
-		if (SPLUNK_TIME_FORMAT == "prefix-ISO8601"):
+		match SPLUNK_TIME_FORMAT:
+			case "prefix-ISO8601": # For ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
+				
+				if len(SPLUNK_TIME_PREFIX) > 0:
+					regexGroupIndex = 2
+				else: 
+					regexGroupIndex = 0
 
-			if (len(SPLUNK_TIME_PREFIX) > 0):
-				regexGroupIndex = 2
-			else: 
-				regexGroupIndex = 0
+				iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + r"(.{1,5})?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{0,10})?Z)", str(event)).group(regexGroupIndex) #fix eventTime
+				return dateutil.parser.parse(iso8601Timestamp).timestamp()
 
-			iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + r"(.{1,5})?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{0,10})?Z)", str(event)).group(regexGroupIndex) #fix eventTime
-			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
-		# For prefix epoch formats
-		elif (SPLUNK_TIME_FORMAT == "prefix-epoch"):
-			epochTimeString = re.search("" + SPLUNK_TIME_PREFIX + r"(.{1,5})?\d{10,13}", str(event)).group(0)
-			epochTime = re.search(r"\d{10,13}", str(epochTimeString)).group(0)
-			if (len(epochTime) == 13):
-				epochTime = float(epochTime) / 1000
-			return(float(epochTime))
-		# For field-delimited epoch time
-		elif (SPLUNK_TIME_FORMAT == "delineated-epoch"):
-			epochTime = float(event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])
-			return(epochTime)
-		# For delineated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
-		elif (SPLUNK_TIME_FORMAT == "delineated-ISO8601"):
-			iso8601Timestamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
-			return(dateutil.parser.parse(iso8601Timestamp).timestamp())
-		# For custom strftime formats
-		elif(SPLUNK_TIME_FORMAT == "delineated-strftime"):
-			rawTimeStamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
-			return(int(datetime.datetime.strptime(rawTimeStamp, SPLUNK_STRFTIME_FORMAT).strftime("%s")))
+			case "prefix-epoch":# For prefix epoch formats
+				
+				epochTimeString = re.search("" + SPLUNK_TIME_PREFIX + r"(.{1,5})?\d{10,13}", str(event)).group(0)
+				epochTime = re.search(r"\d{10,13}", str(epochTimeString)).group(0)
+				if len(epochTime) == 13:
+					epochTime = float(epochTime) / 1000
+
+				return float(epochTime)
+
+			case "delineated-epoch": # For field-delimited epoch time
+				
+				epochTime = float(event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])
+				return epochTime
+
+			case "delineated-ISO8601": # For delineated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
+				
+				iso8601Timestamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
+				return dateutil.parser.parse(iso8601Timestamp).timestamp()
+			
+			case "delineated-strftime": # For custom strftime formats
+				
+				rawTimeStamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
+				return int(datetime.datetime.strptime(rawTimeStamp, SPLUNK_STRFTIME_FORMAT).strftime("%s"))
 	except:
 		# If not standard, set to current time
 		print("Unable to extract timestamp.  Falling back to current time.")
