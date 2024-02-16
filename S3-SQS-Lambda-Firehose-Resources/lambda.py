@@ -101,31 +101,36 @@ def uncompressFile(path):
 	uncompressedFilePath = path[0:(-1*(len(extension)) - 1)]
 
 	try:
-		# If gzip file...
-		if (extension == "gz" or extension == "gzip"):
+		match extension:
+			case "gz":
+				with gzip.open(path, 'rb') as f_in:
+					with open(uncompressedFilePath, 'wb') as f_out:
+						shutil.copyfileobj(f_in, f_out)
 
-			# Uncompress file
-			with gzip.open(path, 'rb') as f_in:
-				with open(uncompressedFilePath, 'wb') as f_out:
-					shutil.copyfileobj(f_in, f_out)
+				# Remove the uncompressed file
+				os.remove(path)
 
-			# Remove the uncompressed file
-			os.remove(path)
+				return(uncompressedFilePath)
+			case "gzip":
+				with gzip.open(path, 'rb') as f_in:
+					with open(uncompressedFilePath, 'wb') as f_out:
+						shutil.copyfileobj(f_in, f_out)
 
-			return(uncompressedFilePath)
+				# Remove the uncompressed file
+				os.remove(path)
 
-		# If parquet file...
-		elif (extension == "parquet"):
-			df = pandas.read_parquet(path)
-			json_array = df.to_json(orient='records', lines=True)
-			uncompressedFilePath = uncompressedFilePath + ".json"
-			with open(uncompressedFilePath, "w") as f_out:
-				f_out.write(json_array)
+				return(uncompressedFilePath)
+			case "parquet":
+				df = pandas.read_parquet(path)
+				json_array = df.to_json(orient='records', lines=True)
+				uncompressedFilePath = uncompressedFilePath + ".json"
+				with open(uncompressedFilePath, "w") as f_out:
+					f_out.write(json_array)
 
-			# Remove the uncompressed file
-			os.remove(path)
+				# Remove the uncompressed file
+				os.remove(path)
 
-			return(uncompressedFilePath)
+				return(uncompressedFilePath)
 
 	except:
 		return("Unable to uncompress file")
