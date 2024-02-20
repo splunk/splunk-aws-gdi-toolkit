@@ -70,7 +70,7 @@ Resources:
           BufferingHints:
             IntervalInSeconds: 300
             SizeInMBs: 5
-          CompressionFormat: "UNCOMPRESSED"
+          CompressionFormat: "GZIP"
           Prefix: !Sub "$${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
           RoleARN: !GetAtt firehoseIAMRole.Arn
 
