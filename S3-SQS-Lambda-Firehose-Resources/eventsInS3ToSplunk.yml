@@ -675,7 +675,7 @@ Resources:
           # Create delimiter for delimiting events
           def createDelimiter(SPLUNK_EVENT_DELIMITER):
 
-            if (SPLUNK_EVENT_DELIMITER in delimiterMapping.keys()):
+            if SPLUNK_EVENT_DELIMITER in delimiterMapping.keys():
               return delimiterMapping[SPLUNK_EVENT_DELIMITER]
             else:
               return SPLUNK_EVENT_DELIMITER
@@ -702,26 +702,25 @@ Resources:
 
 
           # Check to see if the file is a valid file type
-          def validateFileType(key):
+          def isValidFileType(key):
 
             # Check for invalid file types
             for unsupportedFileType in unsupportedFileTypes:
               if (unsupportedFileType in key):
-                return("Unsupported file type.")
+                return False
 
             # Define file extension
             extension = key.split(".")[-1]
 
             # Check for valid file types
-            for validFileType in validFileTypes:
-              if (extension in validFileType):
-                return("Valid file type.")
+            if extension in validFileTypes:
+              return True
 
             # Check for aws:s3:accesslogs
-            if (SPLUNK_SOURCETYPE == "aws:s3:accesslogs" and len(key.split(".")) == 1):
-              return("Valid file type.")
+            if SPLUNK_SOURCETYPE == "aws:s3:accesslogs" and len(key.split(".")) == 1:
+              return True
 
-            return("Unsupported file type.")
+            return False
 
 
           # Retrieve the S3 object, and return the new path
@@ -738,7 +737,7 @@ Resources:
               return(path)
 
             except:
-              return("Unable to download file s3://" + bucket + "/" + key)
+              return "Unable to download file s3://" + bucket + "/" + key
 
 
           # Uncompress the file if it needs to be uncompressed, then return the path and the new file extension
@@ -749,80 +748,90 @@ Resources:
             uncompressedFilePath = path[0:(-1*(len(extension)) - 1)]
 
             try:
-              # If gzip file...
-              if (extension == "gz" or extension == "gzip"):
+              match extension:
+                case "gz":
 
-                # Uncompress file
-                with gzip.open(path, 'rb') as f_in:
-                  with open(uncompressedFilePath, 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
+                  with gzip.open(path, 'rb') as f_in:
+                    with open(uncompressedFilePath, 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
 
-                # Remove the uncompressed file
-                os.remove(path)
+                  # Remove the uncompressed file
+                  os.remove(path)
 
-                return(uncompressedFilePath)
+                  return uncompressedFilePath
+                case "gzip":
 
-              # If parquet file...
-              elif (extension == "parquet"):
-                df = pandas.read_parquet(path)
-                json_array = df.to_json(orient='records', lines=True)
-                uncompressedFilePath = uncompressedFilePath + ".json"
-                with open(uncompressedFilePath, "w") as f_out:
-                  f_out.write(json_array)
+                  with gzip.open(path, 'rb') as f_in:
+                    with open(uncompressedFilePath, 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
 
-                # Remove the uncompressed file
-                os.remove(path)
+                  # Remove the uncompressed file
+                  os.remove(path)
 
-                return(uncompressedFilePath)
+                  return uncompressedFilePath
+                case "parquet":
+
+                  df = pandas.read_parquet(path)
+                  json_array = df.to_json(orient='records', lines=True)
+                  uncompressedFilePath = uncompressedFilePath + ".json"
+                  with open(uncompressedFilePath, "w") as f_out:
+                    f_out.write(json_array)
+
+                  # Remove the uncompressed file
+                  os.remove(path)
+
+                  return uncompressedFilePath
 
             except:
-              return("Unable to uncompress file")
+              return "Unable to uncompress file"
 
-            return(path)
+            return path
 
 
           # Split events into a list. Additional file extensions should be added here.
           def eventBreak(events, extension, ignoreFirstLine):
 
-            if (extension == "csv" or extension == "log" or SPLUNK_SOURCETYPE == "aws:s3:accesslogs"):
+            if extension == "csv" or extension == "log" or SPLUNK_SOURCETYPE == "aws:s3:accesslogs":
+
               splitEvents = events.split("\n")
 
               # Remove empty last line if it exists
-              if (len(splitEvents[-1]) == 0):
+              if len(splitEvents[-1]) == 0:
                 splitEvents = splitEvents[:-1]
 
-              if (ignoreFirstLine == "true"):
+              if ignoreFirstLine == "true":
                 splitEvents = splitEvents[1:]
               
               events = ""
 
               return splitEvents
 
-            elif (extension == "json" or extension == "txt" or extension=="jsonl"):
-              if (SPLUNK_JSON_FORMAT == "eventsInRecords"):
+            elif extension == "json" or extension == "txt" or extension=="jsonl":
+
+              if SPLUNK_JSON_FORMAT == "eventsInRecords":
                 splitEvents = json.loads(events)["Records"]
                 events = ""
 
                 return splitEvents
 
-              elif (SPLUNK_JSON_FORMAT == "NDJSON"):
+              elif SPLUNK_JSON_FORMAT == "NDJSON":
                 splitEvents = events.split("\n")
                 events = ""
                 
-                if (len(splitEvents[-1]) == 0):
+                if len(splitEvents[-1]) == 0:
                   splitEvents = splitEvents[:-1]
 
                 return splitEvents
 
             else: 
-              return("File type invalid")
+              return "File type invalid"
 
 
           # Clean up first line 
           def cleanFirstLine(splitEvents):
 
             # If the sourcetype is aws:billing:cur, remove everything before the "/" in the CSV header
-            if (SPLUNK_SOURCETYPE == "aws:billing:cur"):
+            if SPLUNK_SOURCETYPE == "aws:billing:cur":
               
               header = splitEvents[0]
               
@@ -833,7 +842,7 @@ Resources:
               
               splitEvents[0] = newHeader[:-1]
 
-            return(splitEvents)
+            return splitEvents
 
 
           # Handle CSV to JSON conversion, and optionally remove null fields
@@ -847,14 +856,16 @@ Resources:
               newEvents.append(csvRow)
 
             # Remove JSON fields with null or no value
-            if (SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS == "true"):
+            if SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS == "true":
 
               newEventsWithoutEmptyValues = []
               for newEvent in newEvents:
                 newEventWithoutEmptyValues = {}
+                
                 for newEventKey in newEvent.keys():
-                  if (len(newEvent[newEventKey]) > 0):
+                  if len(newEvent[newEventKey]) > 0:
                     newEventWithoutEmptyValues[newEventKey] = newEvent[newEventKey]
+
                 newEventsWithoutEmptyValues.append(newEventWithoutEmptyValues)
 
               newEvents.clear()
@@ -867,71 +878,77 @@ Resources:
           def getTimestamp(event, delimiter):
 
             try:
-              # For ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
-              if (SPLUNK_TIME_FORMAT == "prefix-ISO8601"):
+              match SPLUNK_TIME_FORMAT:
+                case "prefix-ISO8601": # For ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
+                  
+                  if len(SPLUNK_TIME_PREFIX) > 0:
+                    regexGroupIndex = 2
+                  else: 
+                    regexGroupIndex = 0
 
-                if (len(SPLUNK_TIME_PREFIX) > 0):
-                  regexGroupIndex = 2
-                else: 
-                  regexGroupIndex = 0
+                  iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + r"(.{1,5})?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{0,10})?Z)", str(event)).group(regexGroupIndex) #fix eventTime
+                  return dateutil.parser.parse(iso8601Timestamp).timestamp()
 
-                iso8601Timestamp = re.search("" + SPLUNK_TIME_PREFIX + "(.{1,5})?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{0,10})?Z)", str(event)).group(regexGroupIndex) #fix eventTime
-                return(dateutil.parser.parse(iso8601Timestamp).timestamp())
-              # For prefix epoch formats
-              elif (SPLUNK_TIME_FORMAT == "prefix-epoch"):
-                epochTimeString = re.search("" + SPLUNK_TIME_PREFIX + "(.{1,5})?\d{10,13}", str(event)).group(0)
-                epochTime = re.search("\d{10,13}", str(epochTimeString)).group(0)
-                if (len(epochTime) == 13):
-                  epochTime = float(epochTime) / 1000
-                return(float(epochTime))
-              # For field-delimited epoch time
-              elif (SPLUNK_TIME_FORMAT == "delineated-epoch"):
-                epochTime = float(event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])
-                return(epochTime)
-              # For delineated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
-              elif (SPLUNK_TIME_FORMAT == "delineated-ISO8601"):
-                iso8601Timestamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
-                return(dateutil.parser.parse(iso8601Timestamp).timestamp())
-              # For custom strftime formats
-              elif(SPLUNK_TIME_FORMAT == "delineated-strftime"):
-                rawTimeStamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
-                return(int(datetime.datetime.strptime(rawTimeStamp, SPLUNK_STRFTIME_FORMAT).strftime("%s")))
+                case "prefix-epoch":# For prefix epoch formats
+                  
+                  epochTimeString = re.search("" + SPLUNK_TIME_PREFIX + r"(.{1,5})?\d{10,13}", str(event)).group(0)
+                  epochTime = re.search(r"\d{10,13}", str(epochTimeString)).group(0)
+                  if len(epochTime) == 13:
+                    epochTime = float(epochTime) / 1000
+
+                  return float(epochTime)
+
+                case "delineated-epoch": # For field-delimited epoch time
+                  
+                  epochTime = float(event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)])
+                  return epochTime
+
+                case "delineated-ISO8601": # For delineated ISO8601 (%Y-%m-%dT%H-%M-%S.%fZ)
+                  
+                  iso8601Timestamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
+                  return dateutil.parser.parse(iso8601Timestamp).timestamp()
+                
+                case "delineated-strftime": # For custom strftime formats
+                  
+                  rawTimeStamp = event.split(delimiter)[int(SPLUNK_TIME_DELINEATED_FIELD)]
+                  return int(datetime.datetime.strptime(rawTimeStamp, SPLUNK_STRFTIME_FORMAT).strftime("%s"))
+            
             except:
               # If not standard, set to current time
               print("Unable to extract timestamp.  Falling back to current time.")
-              return(time.time())
+              return time.time()
 
-            return(time.time())
+            return time.time()
 
 
           # Buffer and send events to Firehose
           def sendEventsToFirehose(event, final):
 
             # Add current event ot recordBatch
-            if (len(event) > 0): # This will be 0 if it's a final call to clear the buffer
+            if len(event) > 0: # This will be 0 if it's a final call to clear the buffer
               recordBatch.append({"Data": event})
 
             try:
 
               # If there are more than 200 records or 2MB in the sending queue, send the event to Splunk and clear the queue
-              if (len(recordBatch) > 200 or (sys.getsizeof(recordBatch) > 2000000 )):
+              if len(recordBatch) > 200 or (sys.getsizeof(recordBatch) > 2000000 ):
                 response = firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
                 recordBatch.clear()
 
-                if (response['FailedPutCount'] > 0):
+                if response['FailedPutCount'] > 0:
                   return("Unable to send file to Firehose.  First error message: " + response['RequestResponses'][0]['ErrorMessage'])
 
-              elif (final == True):
+              elif final == True:
                 response = firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
                 recordBatch.clear()
 
-                if (response['FailedPutCount'] > 0):
+                if response['FailedPutCount'] > 0:
                   return("Unable to send file to Firehose.  First error message: " + response['RequestResponses'][0]['ErrorMessage'])
 
             except:
-              return("Unable to send file to Firehose")
+              return "Unable to send file to Firehose"
 
-            return("Sent to Firehose")
+            return "Sent to Firehose"
 
 
           # Default Lambda handler
@@ -947,13 +964,13 @@ Resources:
               objectInfo = retrieveObjectInfo(message)
 
               # If a string was returned instead of a dictionary, print the error and stop this loop
-              if (isinstance(objectInfo, str)):
+              if isinstance(objectInfo, str):
                 print(objectInfo)
                 continue
 
               # Validate file types
-              validateFileTypeResult = validateFileType(objectInfo["key"])
-              if ("Unsupported file type." in validateFileTypeResult):
+              isValidFileTypeResult = isValidFileType(objectInfo["key"])
+              if not isValidFileTypeResult:
                 print("Unsupported file type: s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
                 continue
               
@@ -961,7 +978,7 @@ Resources:
               downloadResult = downloadS3Object(objectInfo["bucket"], objectInfo["key"])
               
               # If the file was unable to be downloaded, print the error and stop this loop
-              if ("Unable to download" in downloadResult):
+              if "Unable to download" in downloadResult:
                 print(downloadResult)
                 continue
 
@@ -969,7 +986,7 @@ Resources:
               uncompressResult = uncompressFile(downloadResult)
 
               # If the file was unable to be compressed, print the error and stop this loop
-              if ("Unable to uncompress file" in uncompressResult):
+              if "Unable to uncompress file" in uncompressResult:
                 print("Unable to uncompress file s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
                 continue
 
@@ -988,16 +1005,16 @@ Resources:
               splitEvents = eventBreak(events, extension, SPLUNK_IGNORE_FIRST_LINE)
 
               # Clean up first line of events
-              if (SPLUNK_SOURCETYPE == "aws:billing:cur"):
+              if SPLUNK_SOURCETYPE == "aws:billing:cur":
                 splitEvents = cleanFirstLine(splitEvents)
 
               # If a string was returned instead of a list, print the error and stop this loop
-              if (isinstance(splitEvents, str)):
+              if isinstance(splitEvents, str):
                 print("File type unsupported s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
                 continue
 
               # Transform CSV to JSON
-              if (SPLUNK_CSV_TO_JSON == "true"):
+              if SPLUNK_CSV_TO_JSON == "true":
                 splitEvents = csvToJSON(splitEvents)
 
               # Loop through split events
@@ -1013,7 +1030,7 @@ Resources:
                 result = sendEventsToFirehose(str(splunkEvent), False)
 
                 # Error logging
-                if (result.startswith("Unable to send file to Firehose")):
+                if result.startswith("Unable to send file to Firehose"):
                   print(result + " Firehose name: " + firehoseDeliverySreamName + ". File path: s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
 
               # Send the remaining events to Firehose, effectively clearing the buffered events in recordBatch
@@ -1024,6 +1041,8 @@ Resources:
 
               # Logging
               print("Processed file s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
+
+
       Description: Lambda function for processing SQS messages that contain events, then sending them to firehose to be forwarded to Splunk.
       Environment:
         Variables:
@@ -1045,9 +1064,9 @@ Resources:
       Handler: index.handler
       MemorySize: !Ref lambdaProcessorMemorySize
       Layers:
-        - !Sub "arn:aws:lambda:${AWS::Region}:336392948345:layer:AWSSDKPandas-Python39-Arm64:2"
+        - !Sub "arn:aws:lambda:${AWS::Region}:336392948345:layer:AWSSDKPandas-Python312-Arm64:3"
       Role: !GetAtt lambdaIAMRole.Arn
-      Runtime: python3.9
+      Runtime: python3.12
       Tags:
       - Key: service
         Value: !Ref service

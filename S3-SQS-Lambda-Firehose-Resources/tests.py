@@ -3,9 +3,10 @@ import unittest, os, importlib, time, moto, boto3, glob, shutil
 
 class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 
-	mock_iam = moto.mock_iam()
-	mock_s3 = moto.mock_s3()
-	mock_firehose = moto.mock_firehose()
+	# mock_iam = moto.mock_iam()
+	# mock_s3 = moto.mock_s3()
+	# mock_firehose = moto.mock_firehose()
+	mock = moto.mock_aws()
 	bucket_name = "moto-resource-bucket"
 	bucket_name_firehose = "sqs-s3-firehose-bucket"
 	os.environ["AWS_ACCESS_KEY_ID"] = "testing"
@@ -33,6 +34,9 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		os.environ['SPLUNK_CSV_TO_JSON'] = "main"
 		os.environ['SPLUNK_REMOVE_EMPTY_CSV_TO_JSON_FIELDS'] = "main"	
 
+		# Start moto
+		self.mock.start()
+
 		# Import function to test
 		self.lambda_module = importlib.import_module('lambda')
 
@@ -48,14 +52,12 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		self.lambda_module.SPLUNK_STRFTIME_FORMAT = "main"
 
 		# Set up mock mock_iam
-		self.mock_iam.start()
 		iamClient = boto3.client('iam')
 		createPolicyResult = iamClient.create_policy(PolicyName="moto-testing-allow-all", PolicyDocument='{"Version": "2012-10-17","Statement": [{"Effect": "Allow","Action": "*","Resource": "*"}]}')
 		createRoleResult = iamClient.create_role(RoleName="moto-testing-allow-all", AssumeRolePolicyDocument=str({"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"firehose.amazonaws.com"},"Action":"sts:AssumeRole"}]}))
 		iamClient.attach_role_policy(RoleName="moto-testing-allow-all", PolicyArn=dict(createPolicyResult)['Policy']['Arn'])
 
 		# Set up mock_s3
-		self.mock_s3.start()
 		s3 = boto3.resource("s3")
 		resourceBucket = s3.Bucket(self.bucket_name)
 		resourceBucket.create()
@@ -69,7 +71,6 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 			s3Client.upload_file("test-fixtures/" + str(testFile), self.bucket_name, str(testFile))
 
 		# Set up mock_firehose
-		self.mock_firehose.start()
 		firehose = boto3.client("firehose")
 		firehose.create_delivery_stream(DeliveryStreamName="kdf-test", DeliveryStreamType="DirectPut", S3DestinationConfiguration={"RoleARN":dict(createRoleResult)['Role']['Arn'], "BucketARN": "arn:aws:s3:::" + self.bucket_name_firehose, "BufferingHints": {"SizeInMBs": 1, "IntervalInSeconds": 60}, "CompressionFormat": "UNCOMPRESSED" })
 
@@ -98,23 +99,24 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		self.assertEqual(self.lambda_module.retrieveObjectInfo({'messageId': '0ed4e10e-7fe3-41c8-ba7e-59b0c90826f3', 'receiptHandle': 'AQEBrbGkhIBIrdBxqc9HfoDkMkaNz7/'}), "SQS message did not contain S3 file information.  Record: {'messageId': '0ed4e10e-7fe3-41c8-ba7e-59b0c90826f3', 'receiptHandle': 'AQEBrbGkhIBIrdBxqc9HfoDkMkaNz7/'}")
 
 
-	def test_validateFileType(self):
+	def test_isValidFileType(self):
 		
 		# Test with unsupported files
-		self.assertEqual(self.lambda_module.validateFileType("none"), "Unsupported file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.txt"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("file.md"), "Unsupported file type.")
+		self.assertEqual(self.lambda_module.isValidFileType("none"), False)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.txt"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("file.md"), False)
 
 		# Test with supported files
-		self.assertEqual(self.lambda_module.validateFileType("AWSLogs/841154226728/vpcflowlogs/us-west-2/2023/01/21/841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gz"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gz"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.gz"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gzip"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.gzip"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.json"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.csv"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log"), "Valid file type.")
-		self.assertEqual(self.lambda_module.validateFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.parquet"), "Valid file type.")
+		self.assertEqual(self.lambda_module.isValidFileType("AWSLogs/841154226728/vpcflowlogs/us-west-2/2023/01/21/841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gz"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gz"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.gz"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log.gzip"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.gzip"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.json"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.csv"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.log"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("841154226728_vpcflowlogs_us-west-2_fl-055401975c87952e8_20230121T2105Z_654119f1.parquet"), True)
+		self.assertEqual(self.lambda_module.isValidFileType("AWSLogs/1234/CloudTrail-Digest/eu-west-1/2024/02/16/1234-Digest_eu-west-1_splunk-aws-gdi-tooklit-cloudtrail_us-east-1_20240216T213740Z.json.gz"), False)
 
 
 	def test_eventBreak(self):
@@ -561,9 +563,7 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 	def tearDown(self):
 
 		# Stop moto
-		self.mock_iam.stop()
-		self.mock_s3.stop()
-		self.mock_firehose.stop()
+		self.mock.stop()
 
 		# Delete all files in tmp
 		files = glob.glob('/tmp/*')

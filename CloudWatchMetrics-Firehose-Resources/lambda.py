@@ -70,13 +70,11 @@ def handler(event, context):
 
 		for message in data:
 
-			# Parse event as event-style message
-			if (SPLUNK_EVENT_TYPE == "event"):
-				formattedEvents += parseEventAsEvent(message) + "\n"
-
-			# Parse event as metric-style message
-			elif (SPLUNK_EVENT_TYPE == "metric"):
-				formattedEvents += parseEventAsMetric(message) + "\n"
+			match SPLUNK_EVENT_TYPE:
+				case "event": # Parse event as event-style message
+					formattedEvents += parseEventAsEvent(message) + "\n"
+				case "metric": # Parse event as metric-style message
+					formattedEvents += parseEventAsMetric(message) + "\n"
 
 		returnEvent['recordId'] = dict(record)['recordId']
 		returnEvent['result'] = "Ok"
