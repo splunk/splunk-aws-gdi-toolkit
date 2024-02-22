@@ -6,7 +6,7 @@ Parameters:
   service:
     Type: String
     Description: service name
-    Default: splunk-aws-gdi-tooklit
+    Default: splunk-aws-gdi-toolkit
 
   stage:
     Type: String
