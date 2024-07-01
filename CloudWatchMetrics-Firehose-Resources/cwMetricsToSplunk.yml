@@ -68,6 +68,9 @@ Resources:
       DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
       DeliveryStreamType: DirectPut
       SplunkDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 5
+          SizeInMBs: 1
         CloudWatchLoggingOptions:
           Enabled: true
           LogGroupName: !Ref firehoseLogGroup
@@ -87,7 +90,7 @@ Resources:
             - ParameterName: BufferSizeInMBs
               ParameterValue: 1
             - ParameterName: BufferIntervalInSeconds
-              ParameterValue: 60
+              ParameterValue: 5
             Type: Lambda
         RetryOptions:
           DurationInSeconds: 3600
@@ -96,7 +99,7 @@ Resources:
           BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash"
           BufferingHints:
             IntervalInSeconds: 300
-            SizeInMBs: 5
+            SizeInMBs: 16
           CompressionFormat: "GZIP"
           Prefix: !Sub "$${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
           RoleARN: !GetAtt firehoseIAMRole.Arn
