@@ -1,4 +1,4 @@
-import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime, pandas, pyarrow
+import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime, pandas, pyarrow, urllib.parse
 
 # AWS-related setup
 s3Client = boto3.client('s3')
@@ -42,7 +42,7 @@ def retrieveObjectInfo(record):
 	try:
 		record = json.loads(record['body'])
 		bucket = record['Records'][0]['s3']['bucket']['name']
-		key = record['Records'][0]['s3']['object']['key']
+		key = urllib.parse.unquote_plus(record['Records'][0]['s3']['object']['key'])
 
 		# Construct and return the result
 		result = {}
