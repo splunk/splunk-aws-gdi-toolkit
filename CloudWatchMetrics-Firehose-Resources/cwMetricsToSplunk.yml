@@ -180,7 +180,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties: 
       LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose"
-      RetentionInDays: 30
+      RetentionInDays: 7
 
   firehoseLogStream:
     Type: AWS::Logs::LogStream
