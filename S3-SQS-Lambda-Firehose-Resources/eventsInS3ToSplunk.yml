@@ -535,6 +535,9 @@ Resources:
       DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
       DeliveryStreamType: DirectPut
       SplunkDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 5
+          SizeInMBs: 1
         CloudWatchLoggingOptions:
           Enabled: true
           LogGroupName: !Ref firehoseLogGroup
@@ -550,7 +553,7 @@ Resources:
           BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}-firehose-backsplash"
           BufferingHints:
             IntervalInSeconds: 300
-            SizeInMBs: 5
+            SizeInMBs: 16
           CompressionFormat: "GZIP"
           Prefix: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
           RoleARN: !GetAtt firehoseIAMRole.Arn
@@ -626,7 +629,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties: 
       LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
-      RetentionInDays: 30
+      RetentionInDays: 7
 
   firehoseLogStream:
     Type: AWS::Logs::LogStream
@@ -644,7 +647,7 @@ Resources:
         - arm64
       Code:
         ZipFile: |
-          import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime, pandas, pyarrow
+          import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv, datetime, pandas, pyarrow, urllib.parse
 
           # AWS-related setup
           s3Client = boto3.client('s3')
@@ -688,7 +691,7 @@ Resources:
             try:
               record = json.loads(record['body'])
               bucket = record['Records'][0]['s3']['bucket']['name']
-              key = record['Records'][0]['s3']['object']['key']
+              key = urllib.parse.unquote_plus(record['Records'][0]['s3']['object']['key'])
 
               # Construct and return the result
               result = {}
@@ -1064,7 +1067,7 @@ Resources:
       Handler: index.handler
       MemorySize: !Ref lambdaProcessorMemorySize
       Layers:
-        - !Sub "arn:aws:lambda:${AWS::Region}:336392948345:layer:AWSSDKPandas-Python312-Arm64:3"
+        - !Sub "arn:aws:lambda:${AWS::Region}:336392948345:layer:AWSSDKPandas-Python312-Arm64:9"
       Role: !GetAtt lambdaIAMRole.Arn
       Runtime: python3.12
       Tags:

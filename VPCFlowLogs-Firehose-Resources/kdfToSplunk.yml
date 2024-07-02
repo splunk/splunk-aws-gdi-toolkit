@@ -46,6 +46,9 @@ Resources:
       DeliveryStreamName: !Sub "${AWS::AccountId}-${AWS::Region}-vpcflow-firehose"
       DeliveryStreamType: DirectPut
       SplunkDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 5
+          SizeInMBs: 1
         CloudWatchLoggingOptions:
           Enabled: true
           LogGroupName: !Ref firehoseLogGroup
@@ -55,13 +58,13 @@ Resources:
         HECEndpointType: "Raw"
         HECToken: !Ref splunkHECToken
         RetryOptions:
-          DurationInSeconds: 10 #3600
+          DurationInSeconds: 3600
         S3BackupMode: "FailedEventsOnly"
         S3Configuration:
           BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-vpcflow-firehose-backsplash"
           BufferingHints:
             IntervalInSeconds: 300
-            SizeInMBs: 5
+            SizeInMBs: 16
           CompressionFormat: "GZIP"
           Prefix: !Sub "${AWS::AccountId}-${AWS::Region}-vpcflow-firehose"
           RoleARN: !GetAtt firehoseIAMRole.Arn
@@ -137,7 +140,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties: 
       LogGroupName: !Sub "/aws/kinesisfirehose/${AWS::AccountId}-${AWS::Region}-vpcflow-firehose"
-      RetentionInDays: 30
+      RetentionInDays: 7
 
   firehoseLogStream:
     Type: AWS::Logs::LogStream
