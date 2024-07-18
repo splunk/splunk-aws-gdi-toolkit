@@ -238,3 +238,48 @@ Resources:
           Condition:
             StringEquals:
               aws:SourceAccount: !Ref AWS::AccountId
+
+  # SQS resources
+  s3BucketNotificationSQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-sqs-queue"
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      - Key: logType
+        Value: !Ref logType
+      VisibilityTimeout: !Ref sqsQueueVisibilityTimeoutInSecond
+
+  s3BucketNotificationSQSQueuePolicy: 
+    Type: AWS::SQS::QueuePolicy
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-sqs-queuePolicy"
+        Statement:
+        -
+          Sid: Send messages to SQS
+          Effect: Allow
+          Principal:
+            AWS: "*"
+          Action:
+            - "SQS:SendMessage"
+          Resource: "*"
+          Condition:
+            ArnLike: 
+              "aws:SourceARN": !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"]
+      Queues:
+        - !Ref "s3BucketNotificationSQSQueue"
+
+
+Outputs:
+  s3BucketArn:
+    Condition: createNewS3Bucket
+    Value: !GetAtt s3Bucket.Arn
+  s3BucketNotificationSQSQueueArn:
+    Value: !GetAtt s3BucketNotificationSQSQueue.Arn
