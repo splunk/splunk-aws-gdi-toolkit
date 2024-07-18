@@ -159,10 +159,10 @@ Resources:
             - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-expiration"
               ExpirationInDays: !Ref s3ObjectExpirationInDays
               Status: Enabled
-      # NotificationConfiguration:
-      #   QueueConfigurations:
-      #     - Event: "s3:ObjectCreated:*"
-      #       Queue: !GetAtt s3BucketNotificationSQSQueue.Arn
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Queue: !GetAtt s3BucketNotificationSQSQueue.Arn
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
