@@ -1,0 +1,240 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create AWS reosurces to work with Splunk Cloud Data Manager's S3-based pull connector.
+
+
+Parameters:
+
+  service:
+    Type: String
+    Description: Service name used in tagging AWS resources.
+    Default: splunk-aws-gdi-toolkit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
+    Type: String
+    Default: ""
+
+  logType:
+    Type: String
+    Description: Log type, used in AWS resource names and for setting bucket policies
+    AllowedValues:
+      - cloudtrail
+      - s3accesslogs
+      - elbaccesslogs
+      - cloudfrontaccesslogs
+
+  existingS3BucketName:
+    Type: String
+    Description: Name of the existng S3 bucket you want to ingest data from.  Leave this blank to create a new S3 bucket.  If you specify the name of an existing S3 bucket, you'll need to create the S3 > SQS notification settings.
+    Default: ""
+
+  s3ObjectExpirationInDays:
+    Description: How many days to keep the files in S3 before they're deleted.  This only applies to new buckets and not existing buckets.
+    Default: 90
+    Type: String
+
+  sqsQueueVisibilityTimeoutInSecond:
+    Type: Number
+    Description: How long to let SQS messages be taken by the Lambda function before they become available to be processed again.  Must be more than lambdaProcessorTimeout.
+    Default: 630
+    MinValue: 0
+    MaxValue: 43200
+
+
+Conditions:
+  createNewS3Bucket: !Equals
+    - !Ref existingS3BucketName
+    - ""
+  useExistingS3Bucket: !Not
+    - !Equals
+      - !Ref existingS3BucketName
+      - ""
+  cloudTrail: !Equals
+    - !Ref logType
+    - "cloudtrail"
+  cloudTrailNewBucket: !And
+    - !Condition cloudTrail
+    - !Condition createNewS3Bucket
+  s3AccessLogs: !Equals
+    - !Ref logType
+    - "s3accesslogs"
+  s3AccessLogsNewBucket: !And
+    - !Condition s3AccessLogs
+    - !Condition createNewS3Bucket
+  elbAccessLogs: !Equals
+    - !Ref logType
+    - "elbaccesslogs"
+  elbAccessLogssNewBucket: !And
+    - !Condition elbAccessLogs
+    - !Condition createNewS3Bucket
+  cloudFrontAccessLogs: !Equals
+    - !Ref logType
+    - "cloudfrontaccesslogs"
+  cloudFrontAccessLogsNewBucket: !And
+    - !Condition cloudFrontAccessLogs
+    - !Condition createNewS3Bucket
+
+
+Mappings:
+  RegionMapping:
+    us-east-1:
+      elbAccountIDPrincipal: arn:aws:iam::127311923021:root
+    us-east-2:
+      elbAccountIDPrincipal: arn:aws:iam::033677994240:root
+    us-west-1:
+      elbAccountIDPrincipal: arn:aws:iam::027434742980:root
+    us-west-2:
+      elbAccountIDPrincipal: arn:aws:iam::797873946194:root
+    af-south-1:
+      elbAccountIDPrincipal: arn:aws:iam::098369216593:root
+    ca-central-1:
+      elbAccountIDPrincipal: arn:aws:iam::985666609251:root
+    eu-central-1:
+      elbAccountIDPrincipal: arn:aws:iam::054676820928:root
+    eu-west-1:
+      elbAccountIDPrincipal: arn:aws:iam::156460612806:root
+    eu-west-2:
+      elbAccountIDPrincipal: arn:aws:iam::652711504416:root
+    eu-south-1:
+      elbAccountIDPrincipal: arn:aws:iam::635631232127:root
+    eu-west-3:
+      elbAccountIDPrincipal: arn:aws:iam::009996457667:root
+    eu-north-1:
+      elbAccountIDPrincipal: arn:aws:iam::897822967062:root
+    ap-east-1:
+      elbAccountIDPrincipal: arn:aws:iam::754344448648:root
+    ap-northeast-1:
+      elbAccountIDPrincipal: arn:aws:iam::582318560864:root
+    ap-northeast-2:
+      elbAccountIDPrincipal: arn:aws:iam::600734575887:root
+    ap-northeast-3:
+      elbAccountIDPrincipal: arn:aws:iam::383597477331:root
+    ap-southeast-1:
+      elbAccountIDPrincipal: arn:aws:iam::114774131450:root
+    ap-southeast-2:
+      elbAccountIDPrincipal: arn:aws:iam::783225319266:root
+    ap-southeast-3:
+      elbAccountIDPrincipal: arn:aws:iam::589379963580:root
+    ap-south-1:
+      elbAccountIDPrincipal: arn:aws:iam::718504428378:root
+    me-south-1:
+      elbAccountIDPrincipal: arn:aws:iam::076674570225:root
+    sa-east-1:
+      elbAccountIDPrincipal: arn:aws:iam::507241528517:root
+    us-gov-west-1:
+      elbAccountIDPrincipal: arn:aws:iam::048591011584:root
+    us-gov-east-1:
+      elbAccountIDPrincipal: arn:aws:iam::190560391635:root
+    cn-north-1:
+      elbAccountIDPrincipal: arn:aws:iam::638102146993:root
+    cn-northwest-1:
+      elbAccountIDPrincipal: arn:aws:iam::037604701340:root
+
+
+Resources: 
+
+  # S3 resources
+  s3Bucket:
+    Type: AWS::S3::Bucket
+    Condition: createNewS3Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}"
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-expiration"
+              ExpirationInDays: !Ref s3ObjectExpirationInDays
+              Status: Enabled
+      # NotificationConfiguration:
+      #   QueueConfigurations:
+      #     - Event: "s3:ObjectCreated:*"
+      #       Queue: !GetAtt s3BucketNotificationSQSQueue.Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      - Key: logType
+        Value: !Ref logType
+
+  s3BucketPolicyCloudTrailLogs:
+    Type: AWS::S3::BucketPolicy
+    Condition: cloudTrailNewBucket
+    Properties:
+      Bucket: !Ref s3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+          Principal: 
+            Service: cloudtrail.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            Service: cloudtrail.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
+
+  s3BucketPolicyELBLogs:
+    Type: AWS::S3::BucketPolicy
+    Condition: elbAccessLogssNewBucket
+    Properties:
+      Bucket: !Ref s3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:GetBucketAcl
+          Principal: 
+            Service: logdelivery.elb.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            AWS: !FindInMap [RegionMapping, !Ref AWS::Region, elbAccountIDPrincipal]
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
+          Condition:
+            StringEquals:
+              s3:x-amz-acl: bucket-owner-full-control
+
+  s3BucketPolicyS3ServerAccessLogs:
+    Type: AWS::S3::BucketPolicy
+    Condition: s3AccessLogsNewBucket
+    Properties:
+      Bucket: !Ref s3Bucket
+      PolicyDocument:
+        Statement:
+        - Sid: "S3ServerAccessLogsPolicy"
+          Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            Service: logging.s3.amazonaws.com
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-${logType}/*"
+          Condition:
+            StringEquals:
+              aws:SourceAccount: !Ref AWS::AccountId
