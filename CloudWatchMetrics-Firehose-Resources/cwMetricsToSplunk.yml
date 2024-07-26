@@ -96,7 +96,7 @@ Resources:
           DurationInSeconds: 3600
         S3BackupMode: "FailedEventsOnly"
         S3Configuration:
-          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash"
+          BucketARN: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-backsplash"
           BufferingHints:
             IntervalInSeconds: 300
             SizeInMBs: 16
@@ -118,7 +118,7 @@ Resources:
         - Effect: Allow
           Action:
           - s3:PutObject
-          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash/*"
+          Resource: !Sub "arn:aws:s3:::${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-backsplash/*"
         - Effect: Allow
           Action:
           - lambda:InvokeFunction
@@ -151,7 +151,7 @@ Resources:
   firehoseBacksplashBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash"
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-backsplash"
       AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -164,7 +164,7 @@ Resources:
               SSEAlgorithm: AES256
       LifecycleConfiguration:
         Rules:
-            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-${splunkEventType}-firehose-backsplash-cleanup"
+            - Id: !Sub "${AWS::AccountId}-${AWS::Region}-cwmetrics-firehose-backsplash-cleanup"
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 1
               Status: Enabled
