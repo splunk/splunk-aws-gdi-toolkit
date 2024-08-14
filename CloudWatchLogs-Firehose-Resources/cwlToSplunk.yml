@@ -62,6 +62,14 @@ Parameters:
     Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
     Default: ""
 
+  preserveDoubleBackslashesInEvent:
+    Type: String
+    Description: Whether to preserve double backslashes in events, basically escape characters
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
 Conditions:
   enableAlerting: !Not 
     - !Equals 
@@ -255,6 +263,7 @@ Resources:
           SPLUNK_SOURCETYPE = os.environ['SPLUNK_SOURCETYPE']
           SPLUNK_HOST = os.environ['SPLUNK_HOST']
           SPLUNK_INDEX = os.environ['SPLUNK_INDEX']
+          PRESERVE_DOUBLE_BACKSLASHES_IN_EVENT = os.environ['PRESERVE_DOUBLE_BACKSLASHES_IN_EVENT']
 
           # Default Lambda handler
           def handler(event, context):
@@ -275,6 +284,10 @@ Resources:
 
                 # Format Splunk event
                 formattedEvents += '{ "time": ' +  str(logEvent['timestamp']) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "' + SPLUNK_SOURCETYPE + '", "index": "' + SPLUNK_INDEX + '", "event": "' + " ".join(str(logEvent['message']).split()) + '"}'
+
+              # Optionally preserve double backslashes
+              if PRESERVE_DOUBLE_BACKSLASHES_IN_EVENT == "true":
+                formattedEvents = formattedEvents.replace('\\','\\\\')
       
               # Construct return event
               returnEvent['recordId'] = dict(record)['recordId']
@@ -295,6 +308,7 @@ Resources:
           SPLUNK_SOURCE: !Ref splunkSource
           SPLUNK_SOURCETYPE: !Ref splunkSourcetype
           SPLUNK_HOST: !Ref splunkHost
+          PRESERVE_DOUBLE_BACKSLASHES_IN_EVENT: !Ref preserveDoubleBackslashesInEvent
       FunctionName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
       Handler: index.handler
       MemorySize: 512
