@@ -23,8 +23,18 @@ def handler(event, context):
 		for logEvent in decodedData['logEvents']:
 
 			# Format Splunk event
-			formattedEvents += '{ "time": ' +  str(logEvent['timestamp']) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "' + SPLUNK_SOURCETYPE + '", "index": "' + SPLUNK_INDEX + '", "event": "' + " ".join(str(logEvent['message']).split()) + '"}'
-		
+			formattedEvents += json.dumps(
+				{
+					"time": logEvent["timestamp"],
+					"host": SPLUNK_HOST,
+					"source": SPLUNK_SOURCE,
+					"sourcetype": SPLUNK_SOURCETYPE,
+					"index": SPLUNK_INDEX,
+					"event": logEvent["message"],
+				},
+				indent=None,
+			)
+			
 		# Construct return event
 		returnEvent['recordId'] = dict(record)['recordId']
 		returnEvent['result'] = "Ok"
