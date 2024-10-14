@@ -4,7 +4,6 @@ SPLUNK_SOURCE = os.environ['SPLUNK_SOURCE']
 SPLUNK_SOURCETYPE = os.environ['SPLUNK_SOURCETYPE']
 SPLUNK_HOST = os.environ['SPLUNK_HOST']
 SPLUNK_INDEX = os.environ['SPLUNK_INDEX']
-PRESERVE_DOUBLE_BACKSLASHES_IN_EVENT = os.environ['PRESERVE_DOUBLE_BACKSLASHES_IN_EVENT']
 
 # Default Lambda handler
 def handler(event, context):
@@ -24,11 +23,7 @@ def handler(event, context):
 		for logEvent in decodedData['logEvents']:
 
 			# Format Splunk event
-			formattedEvents += '{ "time": ' +  str(logEvent['timestamp']) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "' + SPLUNK_SOURCETYPE + '", "index": "' + SPLUNK_INDEX + '", "event": "' + " ".join(str(logEvent['message']).split()) + '"}'
-
-		# Optionally preserve double backslashes
-		if PRESERVE_DOUBLE_BACKSLASHES_IN_EVENT == "true":
-			formattedEvents = formattedEvents.replace('\\','\\\\')
+			formattedEvents += '{ "time": ' +  str(logEvent['timestamp']) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "' + SPLUNK_SOURCETYPE + '", "index": "' + SPLUNK_INDEX + '", "event": ' + json.dumps(logEvent['message']) + '}'
 		
 		# Construct return event
 		returnEvent['recordId'] = dict(record)['recordId']
