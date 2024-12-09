@@ -24,6 +24,13 @@ Resources:
     Properties: 
       Enable: true
       FindingPublishingFrequency: FIFTEEN_MINUTES
+      Tags:
+        - Key: service
+          Value: !Ref service
+        - Key: stage
+          Value: !Ref stage
+        - Key: contact
+          Value: !Ref contact
 
 
 Outputs:

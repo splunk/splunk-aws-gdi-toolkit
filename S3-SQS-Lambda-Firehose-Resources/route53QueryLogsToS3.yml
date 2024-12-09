@@ -4,22 +4,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: This is a CloudFormation template to configure Route53 DNS Logs for a VPC to be sent to Firehose.
 
 Parameters:
-
-  service:
-    Type: String
-    Description: Service name used in tagging AWS resources.
-    Default: splunk-aws-gdi-toolkit
-
-  stage:
-    Type: String
-    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
-    Default: dev
-
-  contact:
-    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
-    Type: String
-    Default: ""
-
   sourceVPCId:
     Description: The VPC ID of the query logging will be enabled for.
     Type: AWS::EC2::VPC::Id

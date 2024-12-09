@@ -73,12 +73,6 @@ Conditions:
   elbAccessLogssNewBucket: !And
     - !Condition elbAccessLogs
     - !Condition createNewS3Bucket
-  cloudFrontAccessLogs: !Equals
-    - !Ref logType
-    - "cloudfrontaccesslogs"
-  cloudFrontAccessLogsNewBucket: !And
-    - !Condition cloudFrontAccessLogs
-    - !Condition createNewS3Bucket
 
 
 Mappings:

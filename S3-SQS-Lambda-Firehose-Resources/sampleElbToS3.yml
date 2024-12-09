@@ -68,7 +68,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: splunkAWSGDIToolkitLBSG
-      GroupDescription: !Sub "Security group used for sample AWS load balancers."
+      GroupDescription: Security group used for sample AWS load balancers.
       VpcId: !Ref "vpcID"
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
