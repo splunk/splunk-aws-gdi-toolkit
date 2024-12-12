@@ -276,7 +276,7 @@ def getTimestamp(event, delimiter):
 
 
 # Buffer and send events to Firehose
-def sendEventsToFirehose(event, final):
+def bufferAndSendEventsToFirehose(event, final):
 
 	# Add current event ot recordBatch
 	if len(event) > 0: # This will be 0 if it's a final call to clear the buffer
@@ -284,23 +284,16 @@ def sendEventsToFirehose(event, final):
 
 	try:
 
-		# If there are more than 200 records or 2MB in the sending queue, send the event to Splunk and clear the queue
-		if len(recordBatch) > 200 or (sys.getsizeof(recordBatch) > 2000000 ):
+		# If there are more than 450 records or 4500000B in the sending queue, send the event to Splunk and clear the queue
+		if len(recordBatch) >= 450 or sys.getsizeof(recordBatch) >= 4500000 or final == True:
 			response = firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
 			recordBatch.clear()
 
 			if response['FailedPutCount'] > 0:
-				return("Unable to send file to Firehose.  First error message: " + response['RequestResponses'][0]['ErrorMessage'])
+				return("Unable to send file to Firehose.  Error message: " + response['RequestResponses'][0]['ErrorMessage'])
 
-		elif final == True:
-			response = firehoseClient.put_record_batch(DeliveryStreamName=firehoseDeliverySreamName, Records=recordBatch)
-			recordBatch.clear()
-
-			if response['FailedPutCount'] > 0:
-				return("Unable to send file to Firehose.  First error message: " + response['RequestResponses'][0]['ErrorMessage'])
-
-	except:
-		return "Unable to send file to Firehose"
+	except Exception as e:
+		return "Unable to send file to Firehose: " + str(e)
 
 	return "Sent to Firehose"
 
@@ -381,14 +374,14 @@ def handler(event, context):
 			splunkEvent = '{ "time": ' +  str(timestamp) + ', "host": "' + SPLUNK_HOST + '", "source": "' + SPLUNK_SOURCE + '", "sourcetype": "' + SPLUNK_SOURCETYPE + '", "index": "' + SPLUNK_INDEX + '", "event":  ' + json.dumps(splitEvent) + ' }'
 
 			# Buffer and send the events to Firehose
-			result = sendEventsToFirehose(str(splunkEvent), False)
+			result = bufferAndSendEventsToFirehose(str(splunkEvent), False)
 
 			# Error logging
 			if result.startswith("Unable to send file to Firehose"):
 				print(result + " Firehose name: " + firehoseDeliverySreamName + ". File path: s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
 
 		# Send the remaining events to Firehose, effectively clearing the buffered events in recordBatch
-		sendEventsToFirehose("", True)
+		bufferAndSendEventsToFirehose("", True)
 
 		# Delete the file to clear up space in /tmp to make room for the next one
 		os.remove(uncompressResult)
