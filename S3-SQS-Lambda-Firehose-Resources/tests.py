@@ -360,20 +360,20 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 0)
 
 		# Send a single event
-		self.assertEqual(self.lambda_module.bufferAndSendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', False), "Sent to Firehose")
+		self.assertEqual(self.lambda_module.bufferAndSendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', False, "object1.tgz", [0]), "Event buffered")
 
 		# Verify that there are still 0 files in the bucket
 		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 0)
 
 		# Send another 448 files to the bucket
 		for i in range(448):
-			self.lambda_module.bufferAndSendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', False)
+			self.lambda_module.bufferAndSendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', False, "object1.tgz", [0])
 
 		# Verify that there are still 0 files in the bucket
 		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 0)
 
 		# Send 1 more file to the bucket, should trigger Firehose to send an object to S3
-		self.lambda_module.bufferAndSendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', False)
+		self.lambda_module.bufferAndSendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', False, "object1.tgz", [0])
 		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 1)
 		
 		# Verify the contents of the file
@@ -396,7 +396,7 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 
 		# Send one, final event to Firehose, then verify it made it to S3 and it's file contents
 		timestamp = str(round(time.time(), 2))
-		self.assertEqual(self.lambda_module.bufferAndSendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host-2", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', True), "Sent to Firehose")
+		self.assertEqual(self.lambda_module.bufferAndSendEventsToFirehose('{ "time": ' +  timestamp + ', "host": "moto-test-host-2", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}', True, "object1.tgz", [0]), "Sent to Firehose")
 		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 1)
 		firehoseKey = str(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['Contents'][0]['Key'])
 		s3Client.download_file(self.bucket_name_firehose, firehoseKey, "/tmp/file2.json")
