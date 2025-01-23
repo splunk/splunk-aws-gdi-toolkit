@@ -288,8 +288,8 @@ def bufferAndSendEventsToFirehose(event, final, objectName, eventBatch):
 	while sendingAttempt <= maxRetriesToFirehose:
 
 		try:
-			# If there are more than 450 records or 4500000B in the sending queue, send the event to Splunk and clear the queue
-			if len(recordBatch) >= 450 or sys.getsizeof(recordBatch) >= 4500000 or final == True:
+			# If there are more than 450 records or 4500000B in the sending queue or this is the final sending and there are records to send, send the event to Splunk and clear the queue
+			if len(recordBatch) >= 450 or sys.getsizeof(recordBatch) >= 4500000 or (final == True and len(recordBatch) >= 1):
 				
 				# Incrmenet eventBatch for logging
 				if sendingAttempt == 1:
@@ -308,7 +308,10 @@ def bufferAndSendEventsToFirehose(event, final, objectName, eventBatch):
 
 			# If the threshold for sending wasn't reached...
 			else:
-				return("Event buffered")
+				if (final == True and len(recordBatch) == 0):
+					return("Final try, no events buffered")
+				else: 
+					return("Event buffered")
 
 		# Print exception for debugging
 		except Exception as e:

@@ -407,6 +407,15 @@ class S3_SQS_Lambda_Firehose_Tests(unittest.TestCase):
 
 		self.assertEqual(str(file2), '{ "time": ' +  timestamp + ', "host": "moto-test-host-2", "source": "moto-test-source", "sourcetype": "moto-test-sourcetype", "index": "moto-test-index", "event":  "moto-test-event"}')
 
+		# Delete file in S3
+		s3Client.delete_object(Bucket=self.bucket_name_firehose, Key=firehoseKey)
+		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 0)
+
+		# Send zero events, final argument to true, then verify nothiing is being sent to S3
+		timestamp = str(round(time.time(), 2))
+		self.assertEqual(self.lambda_module.bufferAndSendEventsToFirehose('', True, "object1.tgz", [0]), "Final try, no events buffered")
+		self.assertEqual(dict(s3Client.list_objects_v2(Bucket=self.bucket_name_firehose))['KeyCount'], 0)
+
 
 	def test_integration_cloudtrail(self):
 
