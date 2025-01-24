@@ -937,8 +937,8 @@ Resources:
             while sendingAttempt <= maxRetriesToFirehose:
 
               try:
-                # If there are more than 450 records or 4500000B in the sending queue, send the event to Splunk and clear the queue
-                if len(recordBatch) >= 450 or sys.getsizeof(recordBatch) >= 4500000 or final == True:
+                # If there are more than 450 records or 4500000B in the sending queue or this is the final sending and there are records to send, send the event to Splunk and clear the queue
+                if len(recordBatch) >= 450 or sys.getsizeof(recordBatch) >= 4500000 or (final == True and len(recordBatch) >= 1):
                   
                   # Incrmenet eventBatch for logging
                   if sendingAttempt == 1:
@@ -957,7 +957,10 @@ Resources:
 
                 # If the threshold for sending wasn't reached...
                 else:
-                  return("Event buffered")
+                  if (final == True and len(recordBatch) == 0):
+                    return("Final try, no events buffered")
+                  else: 
+                    return("Event buffered")
 
               # Print exception for debugging
               except Exception as e:
@@ -1068,10 +1071,6 @@ Resources:
 
               # Logging
               print("Processed file s3://" + objectInfo["bucket"] + "/" + objectInfo["key"])
-
-
-
-
       Description: Lambda function for processing SQS messages that contain events, then sending them to firehose to be forwarded to Splunk.
       Environment:
         Variables:
